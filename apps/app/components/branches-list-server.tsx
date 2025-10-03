@@ -2,6 +2,7 @@ import { preloadQuery } from "convex/nextjs";
 import { api } from "@repo/convex/_generated/api";
 import { Id } from "@repo/convex/_generated/dataModel";
 import { BranchesListClient } from "./branches-list-client";
+import { getToken } from "@/lib/auth-server";
 
 type BranchesListServerProps = {
   projectId: Id<"projects">;
@@ -16,6 +17,9 @@ export async function BranchesListServer({
     api.branches.getBranchesByProject,
     {
       projectId,
+    },
+    {
+      token: await getToken(),
     },
   );
 

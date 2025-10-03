@@ -4,6 +4,7 @@ import { components } from "./_generated/api";
 import { DataModel } from "./_generated/dataModel";
 import { query } from "./_generated/server";
 import { betterAuth } from "better-auth";
+import { organization } from "better-auth/plugins";
 
 const siteUrl = process.env.SITE_URL!;
 
@@ -30,7 +31,7 @@ export const createAuth = (
         scope: ["user:email", "repo"],
       },
     },
-    plugins: [convex()],
+    plugins: [convex(), organization()],
   });
 };
 
