@@ -4,20 +4,22 @@ import { DashboardNavigation } from "@/components/dashboard-navigation";
 
 type ProjectsPageProps = {
   searchParams: Promise<{ q?: string }>;
+  params: Promise<{ orgId: string }>;
 };
 
 export default async function ProjectsPage({
   searchParams,
+  params,
 }: ProjectsPageProps) {
-  const params = await searchParams;
-  const searchQuery = params.q || "";
+  const { orgId } = await params;
+  const { q: searchQuery = "" } = await searchParams;
 
   return (
     <div className="space-y-8">
       <DashboardNavigation />
       <div className="space-y-4">
-        <ProjectsToolbar defaultSearchQuery={searchQuery} />
-        <ProjectsListServer searchQuery={searchQuery} />
+        <ProjectsToolbar defaultSearchQuery={searchQuery} orgId={orgId} />
+        <ProjectsListServer searchQuery={searchQuery} orgId={orgId} />
       </div>
     </div>
   );

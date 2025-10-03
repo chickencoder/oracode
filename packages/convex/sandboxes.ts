@@ -1,8 +1,10 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { checkProjectPermission } from "./auth";
 
 export const getActiveSandbox = query({
   args: {
+    orgId: v.string(),
     projectId: v.id("projects"),
     branchId: v.id("branches"),
   },
@@ -20,10 +22,16 @@ export const getActiveSandbox = query({
     v.null()
   ),
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (identity === null) {
-      throw new Error("Unauthorized");
+    // Check permissions
+    await checkProjectPermission(ctx, args.orgId, args.projectId, ["read"]);
+
+    // Verify project belongs to org
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.orgId !== args.orgId) {
+      throw new Error("Project not found in organization");
     }
+
+    // Get active sandbox
     const sandbox = await ctx.db
       .query("sandboxes")
       .withIndex("by_project_and_branch", (q) =>
@@ -38,6 +46,7 @@ export const getActiveSandbox = query({
 
 export const createSandbox = mutation({
   args: {
+    orgId: v.string(),
     projectId: v.id("projects"),
     branchId: v.id("branches"),
     sandboxId: v.string(),
@@ -45,10 +54,16 @@ export const createSandbox = mutation({
   },
   returns: v.id("sandboxes"),
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (identity === null) {
-      throw new Error("Unauthorized");
+    // Check permissions
+    await checkProjectPermission(ctx, args.orgId, args.projectId, ["create"]);
+
+    // Verify project belongs to org
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.orgId !== args.orgId) {
+      throw new Error("Project not found in organization");
     }
+
+    // Create sandbox
     const sandboxRecordId = await ctx.db.insert("sandboxes", {
       projectId: args.projectId,
       branchId: args.branchId,
@@ -64,15 +79,29 @@ export const createSandbox = mutation({
 
 export const updateSandboxStatus = mutation({
   args: {
+    orgId: v.string(),
+    projectId: v.id("projects"),
     sandboxRecordId: v.id("sandboxes"),
     status: v.union(v.literal("active"), v.literal("stopped")),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (identity === null) {
-      throw new Error("Unauthorized");
+    // Check permissions
+    await checkProjectPermission(ctx, args.orgId, args.projectId, ["update"]);
+
+    // Verify project belongs to org
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.orgId !== args.orgId) {
+      throw new Error("Project not found in organization");
     }
+
+    // Verify sandbox belongs to project
+    const sandbox = await ctx.db.get(args.sandboxRecordId);
+    if (!sandbox || sandbox.projectId !== args.projectId) {
+      throw new Error("Sandbox not found in project");
+    }
+
+    // Update sandbox status
     await ctx.db.patch(args.sandboxRecordId, {
       status: args.status,
     });

@@ -6,15 +6,18 @@ import { getToken } from "@/lib/auth-server";
 
 type GeneralSettingsServerProps = {
   projectId: Id<"projects">;
+  orgId: string;
 };
 
 export async function GeneralSettingsServer({
   projectId,
+  orgId,
 }: GeneralSettingsServerProps) {
   const preloadedProject = await preloadQuery(
     api.projects.getProjectById,
     {
       projectId,
+      orgId,
     },
     { token: await getToken() },
   );

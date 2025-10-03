@@ -1,16 +1,31 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { checkProjectPermission } from "./auth";
 
 export const createSession = mutation({
   args: {
+    orgId: v.string(),
+    projectId: v.id("projects"),
     sandboxId: v.id("sandboxes"),
   },
   returns: v.id("sessions"),
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (identity === null) {
-      throw new Error("Unauthorized");
+    // Check permissions
+    await checkProjectPermission(ctx, args.orgId, args.projectId, ["create"]);
+
+    // Verify project belongs to org
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.orgId !== args.orgId) {
+      throw new Error("Project not found in organization");
     }
+
+    // Verify sandbox belongs to project
+    const sandbox = await ctx.db.get(args.sandboxId);
+    if (!sandbox || sandbox.projectId !== args.projectId) {
+      throw new Error("Sandbox not found in project");
+    }
+
+    // Create session
     const sessionId = await ctx.db.insert("sessions", {
       sandboxId: args.sandboxId,
       createdAt: Date.now(),
@@ -22,15 +37,34 @@ export const createSession = mutation({
 
 export const updateSessionWithAgentId = mutation({
   args: {
+    orgId: v.string(),
+    projectId: v.id("projects"),
     sessionId: v.id("sessions"),
     agentSessionId: v.string(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (identity === null) {
-      throw new Error("Unauthorized");
+    // Check permissions
+    await checkProjectPermission(ctx, args.orgId, args.projectId, ["update"]);
+
+    // Verify project belongs to org
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.orgId !== args.orgId) {
+      throw new Error("Project not found in organization");
     }
+
+    // Verify session chain: session -> sandbox -> project
+    const session = await ctx.db.get(args.sessionId);
+    if (!session) {
+      throw new Error("Session not found");
+    }
+
+    const sandbox = await ctx.db.get(session.sandboxId);
+    if (!sandbox || sandbox.projectId !== args.projectId) {
+      throw new Error("Session does not belong to project");
+    }
+
+    // Update session
     await ctx.db.patch(args.sessionId, {
       agentSessionId: args.agentSessionId,
     });
@@ -41,6 +75,8 @@ export const updateSessionWithAgentId = mutation({
 
 export const getSessionById = query({
   args: {
+    orgId: v.string(),
+    projectId: v.id("projects"),
     sessionId: v.id("sessions"),
   },
   returns: v.union(
@@ -54,16 +90,34 @@ export const getSessionById = query({
     v.null(),
   ),
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (identity === null) {
-      throw new Error("Unauthorized");
+    // Check permissions
+    await checkProjectPermission(ctx, args.orgId, args.projectId, ["read"]);
+
+    // Verify project belongs to org
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.orgId !== args.orgId) {
+      throw new Error("Project not found in organization");
     }
-    return await ctx.db.get(args.sessionId);
+
+    // Get session and verify chain
+    const session = await ctx.db.get(args.sessionId);
+    if (!session) {
+      return null;
+    }
+
+    const sandbox = await ctx.db.get(session.sandboxId);
+    if (!sandbox || sandbox.projectId !== args.projectId) {
+      throw new Error("Session does not belong to project");
+    }
+
+    return session;
   },
 });
 
 export const getLatestSessionBySandbox = query({
   args: {
+    orgId: v.string(),
+    projectId: v.id("projects"),
     sandboxId: v.id("sandboxes"),
   },
   returns: v.union(
@@ -77,10 +131,22 @@ export const getLatestSessionBySandbox = query({
     v.null(),
   ),
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (identity === null) {
-      throw new Error("Unauthorized");
+    // Check permissions
+    await checkProjectPermission(ctx, args.orgId, args.projectId, ["read"]);
+
+    // Verify project belongs to org
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.orgId !== args.orgId) {
+      throw new Error("Project not found in organization");
     }
+
+    // Verify sandbox belongs to project
+    const sandbox = await ctx.db.get(args.sandboxId);
+    if (!sandbox || sandbox.projectId !== args.projectId) {
+      throw new Error("Sandbox not found in project");
+    }
+
+    // Get latest session
     const session = await ctx.db
       .query("sessions")
       .withIndex("by_sandbox", (q) => q.eq("sandboxId", args.sandboxId))
@@ -93,6 +159,8 @@ export const getLatestSessionBySandbox = query({
 
 export const getMessagesBySessionId = query({
   args: {
+    orgId: v.string(),
+    projectId: v.id("projects"),
     sessionId: v.id("sessions"),
   },
   returns: v.array(
@@ -111,10 +179,27 @@ export const getMessagesBySessionId = query({
     }),
   ),
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (identity === null) {
-      throw new Error("Unauthorized");
+    // Check permissions
+    await checkProjectPermission(ctx, args.orgId, args.projectId, ["read"]);
+
+    // Verify project belongs to org
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.orgId !== args.orgId) {
+      throw new Error("Project not found in organization");
     }
+
+    // Verify session chain
+    const session = await ctx.db.get(args.sessionId);
+    if (!session) {
+      throw new Error("Session not found");
+    }
+
+    const sandbox = await ctx.db.get(session.sandboxId);
+    if (!sandbox || sandbox.projectId !== args.projectId) {
+      throw new Error("Session does not belong to project");
+    }
+
+    // Get messages
     return await ctx.db
       .query("messages")
       .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))

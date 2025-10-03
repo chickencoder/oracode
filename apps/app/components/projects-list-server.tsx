@@ -5,14 +5,16 @@ import { getToken } from "@/lib/auth-server";
 
 type ProjectsListServerProps = {
   searchQuery: string;
+  orgId: string;
 };
 
 export async function ProjectsListServer({
   searchQuery,
+  orgId,
 }: ProjectsListServerProps) {
   const preloadedProjects = await preloadQuery(
     api.projects.getUserProjects,
-    {},
+    { orgId },
     { token: await getToken() },
   );
 

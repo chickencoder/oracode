@@ -1,8 +1,12 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { checkProjectPermission } from "./auth";
 
 export const getBranchesByProject = query({
-  args: { projectId: v.id("projects") },
+  args: {
+    orgId: v.string(),
+    projectId: v.id("projects"),
+  },
   returns: v.array(
     v.object({
       _id: v.id("branches"),
@@ -16,10 +20,16 @@ export const getBranchesByProject = query({
     }),
   ),
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (identity === null) {
-      throw new Error("Unauthorized");
+    // Check permissions
+    await checkProjectPermission(ctx, args.orgId, args.projectId, ["read"]);
+
+    // Verify project belongs to org
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.orgId !== args.orgId) {
+      throw new Error("Project not found in organization");
     }
+
+    // Get branches for this project
     const branches = await ctx.db
       .query("branches")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
@@ -30,19 +40,24 @@ export const getBranchesByProject = query({
 
 export const upsertBranch = mutation({
   args: {
+    orgId: v.string(),
     projectId: v.id("projects"),
     name: v.string(),
     commitSha: v.string(),
     commitUrl: v.string(),
     protected: v.boolean(),
-    orgId: v.optional(v.string()),
   },
   returns: v.id("branches"),
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (identity === null) {
-      throw new Error("Unauthorized");
+    // Check permissions
+    await checkProjectPermission(ctx, args.orgId, args.projectId, ["update"]);
+
+    // Verify project belongs to org
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.orgId !== args.orgId) {
+      throw new Error("Project not found in organization");
     }
+
     // Check if branch already exists
     const existingBranch = await ctx.db
       .query("branches")
@@ -76,6 +91,7 @@ export const upsertBranch = mutation({
 
 export const syncBranchesFromGitHub = mutation({
   args: {
+    orgId: v.string(),
     projectId: v.id("projects"),
     branches: v.array(
       v.object({
@@ -85,14 +101,18 @@ export const syncBranchesFromGitHub = mutation({
         protected: v.boolean(),
       }),
     ),
-    orgId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (identity === null) {
-      throw new Error("Unauthorized");
+    // Check permissions
+    await checkProjectPermission(ctx, args.orgId, args.projectId, ["update"]);
+
+    // Verify project belongs to org
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.orgId !== args.orgId) {
+      throw new Error("Project not found in organization");
     }
+
     // Get existing branches for this project
     const existingBranches = await ctx.db
       .query("branches")

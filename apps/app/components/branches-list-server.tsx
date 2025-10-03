@@ -6,17 +6,20 @@ import { getToken } from "@/lib/auth-server";
 
 type BranchesListServerProps = {
   projectId: Id<"projects">;
+  orgId: string;
   searchQuery: string;
 };
 
 export async function BranchesListServer({
   projectId,
   searchQuery,
+  orgId,
 }: BranchesListServerProps) {
   const preloadedBranches = await preloadQuery(
     api.branches.getBranchesByProject,
     {
       projectId,
+      orgId,
     },
     {
       token: await getToken(),
