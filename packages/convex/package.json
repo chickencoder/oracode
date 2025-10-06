@@ -25,10 +25,13 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@octokit/auth-app": "^8.1.1",
     "convex": "^1.27.0",
-    "nanoid": "^5.1.6"
+    "nanoid": "^5.1.6",
+    "zod": "^4.1.11"
   },
   "devDependencies": {
+    "@types/node": "^24.7.0",
     "typescript": "^5"
   }
 }

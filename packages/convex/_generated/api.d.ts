@@ -13,7 +13,10 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
+import type * as github from "../github.js";
+import type * as http from "../http.js";
 import type * as messages from "../messages.js";
+import type * as projects from "../projects.js";
 import type * as sessions from "../sessions.js";
 import type * as types from "../types.js";
 
@@ -26,7 +29,10 @@ import type * as types from "../types.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  github: typeof github;
+  http: typeof http;
   messages: typeof messages;
+  projects: typeof projects;
   sessions: typeof sessions;
   types: typeof types;
 }>;

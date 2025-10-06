@@ -18,8 +18,8 @@
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "isolatedModules": true,
-    "noEmit": true
+    "noEmit": true,
   },
-  "include": ["./**/*"],
+  "include": ["./**/*", "./globals.d.ts"],
   "exclude": ["./_generated"]
 }
