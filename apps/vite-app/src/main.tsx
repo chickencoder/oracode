@@ -2,8 +2,9 @@ import "./index.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router";
-import { ClerkProvider } from "@clerk/react-router";
-import { ConvexProvider, ConvexReactClient } from "convex/react";
+import { ClerkProvider, useAuth } from "@clerk/react-router";
+import { ConvexProviderWithClerk } from "convex/react-clerk";
+import { ConvexReactClient } from "convex/react";
 import { SignInPage } from "./pages/SignIn.tsx";
 import { OnboardingPage } from "./pages/Onboarding.tsx";
 import { OrgDashboardPage } from "./pages/OrgDashboard.tsx";
@@ -23,7 +24,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
       <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
-        <ConvexProvider client={convex}>
+        <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
           <Routes>
             <Route path="/" element={<OnboardingPage />} />
             <Route path="/sign-in/*" element={<SignInPage />} />
@@ -33,7 +34,7 @@ createRoot(document.getElementById("root")!).render(
             />
             <Route path="/:orgSlug" element={<OrgDashboardPage />} />
           </Routes>
-        </ConvexProvider>
+        </ConvexProviderWithClerk>
       </ClerkProvider>
     </BrowserRouter>
   </StrictMode>,

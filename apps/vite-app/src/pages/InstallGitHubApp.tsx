@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from "react-router";
 import { useMutation } from "convex/react";
 import { api } from "@repo/convex/_generated/api";
 import { useGitHubInstallation } from "../hooks/useGitHubInstallation";
-import { getGitHubAvatarUrl, normalizeOrgSlug } from "../lib/constants";
+import { normalizeOrgSlug } from "../lib/constants";
 
 export function InstallGitHubAppPage() {
   const navigate = useNavigate();
@@ -43,16 +43,13 @@ export function InstallGitHubAppPage() {
       userMemberships
     ) {
       const expectedSlug = normalizeOrgSlug(githubOrg);
-      const githubAvatar = getGitHubAvatarUrl(githubOrg);
 
       createOrganization?.({
         name: githubOrg,
         slug: expectedSlug,
-        imageUrl: githubAvatar,
       })
         .then(async (org) => {
           await linkOrganizationToInstallation({
-            orgId: org.id,
             githubOrgLogin: githubOrg,
           });
           navigate(`/${org.slug}`, { replace: true });

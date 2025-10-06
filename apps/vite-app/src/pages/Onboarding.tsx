@@ -24,7 +24,7 @@ export function OnboardingPage() {
   // Check if selected org has GitHub installation
   const installation = useQuery(
     api.github.getInstallation,
-    selectedOrg?.id ? { orgId: selectedOrg.id } : "skip"
+    selectedOrg?.id ? {} : "skip"
   );
 
   useEffect(() => {

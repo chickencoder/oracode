@@ -43,7 +43,6 @@ export function useGitHubInstallation(existingOrgId?: string | null) {
         // Linking to existing org
         setStatus("linking");
         linkOrganizationToInstallation({
-          orgId: existingOrgId,
           githubOrgLogin: githubOrg,
         })
           .then(() => {
@@ -79,7 +78,6 @@ export function useGitHubInstallation(existingOrgId?: string | null) {
           }
 
           linkOrganizationToInstallation({
-            orgId: existingOrg.organization.id,
             githubOrgLogin: githubOrg,
           })
             .then(() => {

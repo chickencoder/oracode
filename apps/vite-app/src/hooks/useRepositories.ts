@@ -11,21 +11,21 @@ export type Repository = {
   htmlUrl: string;
 };
 
-export function useRepositories(orgId: string | undefined) {
+export function useRepositories(enabled: boolean = true) {
   const listRepositories = useAction(api.github.listRepositories);
   const [repos, setRepos] = useState<Repository[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!orgId) {
+    if (!enabled) {
       return;
     }
 
     setLoading(true);
     setError(null);
 
-    listRepositories({ orgId })
+    listRepositories({})
       .then((repos) => {
         setRepos(repos);
       })
@@ -35,7 +35,7 @@ export function useRepositories(orgId: string | undefined) {
         setRepos([]);
       })
       .finally(() => setLoading(false));
-  }, [orgId, listRepositories]);
+  }, [enabled, listRepositories]);
 
   return { repos, loading, error };
 }

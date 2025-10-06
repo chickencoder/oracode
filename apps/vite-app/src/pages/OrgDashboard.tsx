@@ -15,7 +15,7 @@ export function OrgDashboardPage() {
   const navigate = useNavigate();
 
   const { organization, isLoaded } = useOrgNavigation(orgSlug);
-  const { repos, loading, error } = useRepositories(organization?.id);
+  const { repos, loading, error } = useRepositories(!!organization);
 
   // If org not found after loading, redirect to onboarding
   useEffect(() => {

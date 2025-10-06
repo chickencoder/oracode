@@ -67,7 +67,7 @@ const handleGitHubCallback = httpAction(async (ctx, request) => {
 
     try {
       // Fetch installation details from GitHub using JWT
-      const jwt = await ctx.runAction(internal.github.generateAppJWT, {});
+      const jwt = await ctx.runAction(internal.github.generateAppToken, {});
 
       const installationData = await fetch(
         `https://api.github.com/app/installations/${installationId}`,
