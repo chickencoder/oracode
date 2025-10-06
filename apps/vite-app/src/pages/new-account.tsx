@@ -14,10 +14,14 @@ import {
   CardTitle,
 } from "../components/ui/card";
 import { Loader } from "lucide-react";
+import { useState } from "react";
 
-export function InstallGitHubAppPage() {
+export function NewAccountPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasAttemptedCreate, setHasAttemptedCreate] = useState(false);
 
   // Check if we're linking to an existing org
   const existingOrgId = searchParams.get("orgId");
@@ -26,6 +30,7 @@ export function InstallGitHubAppPage() {
     isLoaded: orgLoaded,
     userMemberships,
     createOrganization,
+    setActive,
   } = useOrganizationList({ userMemberships: true });
   const { isLoaded: userLoaded, user } = useUser();
 
@@ -49,23 +54,81 @@ export function InstallGitHubAppPage() {
       githubOrg &&
       status === "creating" &&
       orgLoaded &&
-      userMemberships
+      userMemberships &&
+      !hasAttemptedCreate
     ) {
       const expectedSlug = normalizeOrgSlug(githubOrg);
+
+      // Double-check that org doesn't already exist (defensive programming)
+      const existingOrg = userMemberships.data?.find(
+        (m) =>
+          m.organization.slug === expectedSlug ||
+          m.organization.name === githubOrg,
+      );
+
+      if (existingOrg) {
+        // Org already exists, just link it
+        setHasAttemptedCreate(true);
+
+        // Set as active organization before linking
+        setActive?.({ organization: existingOrg.organization.id })
+          .then(() => linkOrganizationToInstallation({
+            githubOrgLogin: githubOrg,
+          }))
+          .then(() => {
+            navigate(`/${existingOrg.organization.slug}`, { replace: true });
+          })
+          .catch((error) => {
+            console.error("Failed to link installation:", error);
+            setStatus("idle");
+            setHasAttemptedCreate(false);
+          });
+        return;
+      }
+
+      // Mark that we're attempting creation to prevent duplicate attempts
+      setHasAttemptedCreate(true);
 
       createOrganization?.({
         name: githubOrg,
         slug: expectedSlug,
       })
         .then(async (org) => {
+          // Set the newly created org as active before linking
+          await setActive?.({ organization: org.id });
           await linkOrganizationToInstallation({
             githubOrgLogin: githubOrg,
           });
           navigate(`/${org.slug}`, { replace: true });
         })
-        .catch((error) => {
+        .catch(async (error) => {
           console.error("Failed to create organization:", error);
+
+          // If slug is taken, the org might have been created already
+          // Try to find it and link it
+          if (error.message?.includes("slug is taken")) {
+            const retryOrg = userMemberships.data?.find(
+              (m) =>
+                m.organization.slug === expectedSlug ||
+                m.organization.name === githubOrg,
+            );
+
+            if (retryOrg) {
+              try {
+                await setActive?.({ organization: retryOrg.organization.id });
+                await linkOrganizationToInstallation({
+                  githubOrgLogin: githubOrg,
+                });
+                navigate(`/${retryOrg.organization.slug}`, { replace: true });
+                return;
+              } catch (linkError) {
+                console.error("Failed to link existing org:", linkError);
+              }
+            }
+          }
+
           setStatus("idle");
+          setHasAttemptedCreate(false);
         });
     }
   }, [
@@ -74,12 +137,15 @@ export function InstallGitHubAppPage() {
     orgLoaded,
     userMemberships,
     createOrganization,
+    setActive,
     linkOrganizationToInstallation,
     navigate,
     setStatus,
+    hasAttemptedCreate,
   ]);
 
   const handleInstallGitHubApp = async () => {
+    setIsLoading(true);
     if (!user?.id) return;
 
     try {
@@ -125,12 +191,9 @@ export function InstallGitHubAppPage() {
   if (isCreating) {
     return (
       <div className="flex justify-center items-center h-screen">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="text-lg font-medium">Setting up your organization...</p>
-          <p className="text-sm text-muted-foreground">
-            Creating your organization and linking GitHub
-          </p>
+        <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+          <Loader className="size-4 animate-spin" />
+          <p className="text-sm">Setting up your account...</p>
         </div>
       </div>
     );
@@ -153,7 +216,12 @@ export function InstallGitHubAppPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Button onClick={handleInstallGitHubApp} className="w-full" size="lg">
+          <Button
+            onClick={handleInstallGitHubApp}
+            loading={isLoading}
+            className="w-full"
+            size="lg"
+          >
             <svg
               className="w-5 h-5 mr-2"
               fill="currentColor"

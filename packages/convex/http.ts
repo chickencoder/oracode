@@ -96,7 +96,7 @@ const handleGitHubCallback = httpAction(async (ctx, request) => {
       // Redirect back to app with success and GitHub org name
       const appUrl = process.env.VITE_APP_URL || "http://localhost:5173";
       return Response.redirect(
-        `${appUrl}/install-github-app?installation=success&githubOrg=${encodeURIComponent(installation.account.login)}`,
+        `${appUrl}/new-account?installation=success&githubOrg=${encodeURIComponent(installation.account.login)}`,
         302
       );
     } catch (error) {

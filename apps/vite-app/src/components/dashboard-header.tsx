@@ -1,4 +1,4 @@
-import { useOrganizationList, UserButton } from "@clerk/clerk-react";
+import { useOrganizationList, useOrganization, UserButton } from "@clerk/clerk-react";
 import { NavLink, useNavigate, useParams } from "react-router";
 import { OrgDropdown } from "./org-dropdown";
 import { Button } from "./ui/button";
@@ -18,7 +18,8 @@ const tabs = [
 export function DashboardHeader() {
   const navigate = useNavigate();
   const { orgSlug } = useParams<{ orgSlug: string }>();
-  const { userMemberships, isLoaded } = useOrganizationList({
+  const { organization: activeOrg } = useOrganization();
+  const { userMemberships, isLoaded, setActive } = useOrganizationList({
     userMemberships: {
       infinite: true,
     },
@@ -30,8 +31,26 @@ export function DashboardHeader() {
       name: membership.organization.name,
     })) ?? [];
 
-  const handleOrgSelect = (newOrgSlug: string) => {
+  // If the active org is not in the list yet (e.g., just created), add it as fallback
+  if (activeOrg && activeOrg.slug && !orgs.find(org => org.slug === activeOrg.slug)) {
+    orgs.unshift({
+      slug: activeOrg.slug,
+      name: activeOrg.name,
+    });
+  }
+
+  const handleOrgSelect = async (newOrgSlug: string) => {
     if (newOrgSlug) {
+      // Find the org by slug to get its ID
+      const selectedOrg = userMemberships.data?.find(
+        (m) => m.organization.slug === newOrgSlug
+      );
+
+      if (selectedOrg) {
+        // Set as active organization before navigating
+        await setActive?.({ organization: selectedOrg.organization.id });
+      }
+
       navigate(`/${newOrgSlug}`);
     }
   };

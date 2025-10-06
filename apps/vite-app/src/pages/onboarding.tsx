@@ -66,7 +66,7 @@ export function OnboardingPage() {
     if (orgs.length === 0) {
       // No organizations - need to install GitHub app
       setStep("redirecting");
-      navigate("/install-github-app");
+      navigate("/new-account");
       return;
     }
 
@@ -95,7 +95,7 @@ export function OnboardingPage() {
       if (installation === null) {
         // Org exists but no GitHub installation
         setStep("redirecting");
-        navigate(`/install-github-app?orgId=${selectedOrg.id}`);
+        navigate(`/new-account?orgId=${selectedOrg.id}`);
       } else {
         // All good - redirect to org dashboard
         setStep("redirecting");

@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { ChevronsUpDownIcon } from "lucide-react";
+import { ChevronsUpDownIcon, PlusIcon } from "lucide-react";
+import { useNavigate } from "react-router";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from "@/components/ui/command";
 import {
   Popover,
@@ -40,6 +42,7 @@ export function OrgDropdown({
   className,
   isLoading = false,
 }: OrgDropdownProps) {
+  const navigate = useNavigate();
   const [open, setOpen] = React.useState(false);
   const [selectedValue, setSelectedValue] = React.useState(value ?? "");
 
@@ -96,6 +99,18 @@ export function OrgDropdown({
                   {org.name}
                 </CommandItem>
               ))}
+            </CommandGroup>
+            <CommandSeparator />
+            <CommandGroup>
+              <CommandItem
+                onSelect={() => {
+                  setOpen(false);
+                  navigate("/new-account");
+                }}
+              >
+                <PlusIcon className="mr-1 size-4" />
+                New Account
+              </CommandItem>
             </CommandGroup>
           </CommandList>
         </Command>

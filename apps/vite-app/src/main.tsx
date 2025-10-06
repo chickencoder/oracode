@@ -11,7 +11,7 @@ import { ThemeProvider } from "./components/theme-provider";
 import { ClerkThemeWrapper } from "./components/clerk-theme-wrapper";
 import { SignInPage } from "./pages/sign-in.tsx";
 import { OnboardingPage } from "./pages/onboarding.tsx";
-import { InstallGitHubAppPage } from "./pages/install-github-app.tsx";
+import { NewAccountPage } from "./pages/new-account.tsx";
 import { DashboardLayout } from "./layouts/dashboard-layout.tsx";
 import { ProjectsPage } from "./pages/projects.tsx";
 import { SettingsPage } from "./pages/settings.tsx";
@@ -38,8 +38,8 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/" element={<OnboardingPage />} />
                 <Route path="/sign-in/*" element={<SignInPage />} />
                 <Route
-                  path="/install-github-app"
-                  element={<InstallGitHubAppPage />}
+                  path="/new-account"
+                  element={<NewAccountPage />}
                 />
                 <Route path="/:orgSlug" element={<DashboardLayout />}>
                   <Route index element={<ProjectsPage />} />

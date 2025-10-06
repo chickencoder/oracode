@@ -169,6 +169,19 @@ export const linkOrganizationToInstallation = mutation({
       throw new Error("Installation not found");
     }
 
+    // Clean up any old installations for this orgId before linking the new one
+    const existingInstallations = await ctx.db
+      .query("githubInstallations")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .collect();
+
+    for (const existing of existingInstallations) {
+      // Delete old installations that are different from the one we're linking
+      if (existing._id !== installation._id) {
+        await ctx.db.delete(existing._id);
+      }
+    }
+
     // Update with Clerk org ID
     await ctx.db.patch(installation._id, {
       orgId,
@@ -195,10 +208,13 @@ export const getInstallation = query({
     }
     const orgId = identity.orgId;
 
+    // Use .first() instead of .unique() to handle multiple installations
+    // (e.g., if app was uninstalled and reinstalled)
     const installation = await ctx.db
       .query("githubInstallations")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
-      .unique();
+      .order("desc")
+      .first();
 
     if (!installation) {
       return null;
