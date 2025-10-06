@@ -1,4 +1,5 @@
 import "./index.css";
+import "@fontsource-variable/geist";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router";
@@ -7,8 +8,10 @@ import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexReactClient } from "convex/react";
 import { SignInPage } from "./pages/SignIn.tsx";
 import { OnboardingPage } from "./pages/Onboarding.tsx";
-import { OrgDashboardPage } from "./pages/OrgDashboard.tsx";
 import { InstallGitHubAppPage } from "./pages/InstallGitHubApp.tsx";
+import { DashboardLayout } from "./layouts/DashboardLayout.tsx";
+import { ProjectsPage } from "./pages/Projects.tsx";
+import { SettingsPage } from "./pages/Settings.tsx";
 
 // Import your Publishable Key
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
@@ -32,7 +35,10 @@ createRoot(document.getElementById("root")!).render(
               path="/install-github-app"
               element={<InstallGitHubAppPage />}
             />
-            <Route path="/:orgSlug" element={<OrgDashboardPage />} />
+            <Route path="/:orgSlug" element={<DashboardLayout />}>
+              <Route index element={<ProjectsPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+            </Route>
           </Routes>
         </ConvexProviderWithClerk>
       </ClerkProvider>

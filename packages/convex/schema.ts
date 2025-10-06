@@ -41,4 +41,18 @@ export default defineSchema({
   })
     .index("by_state", ["stateToken"])
     .index("by_user", ["userId"]),
+
+  // Projects linked to GitHub repositories
+  projects: defineTable({
+    orgId: v.string(), // Link to Clerk organization
+    githubRepoId: v.number(), // GitHub repository ID
+    name: v.string(), // Project name
+    description: v.string(), // Project description
+    settings: v.object({
+      installCommand: v.string(), // Command to install dependencies
+      devCommand: v.string(), // Command to run dev server
+      port: v.number(), // Port the dev server runs on
+    }),
+    createdAt: v.number(),
+  }).index("by_org", ["orgId"]),
 });

@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
-import { useUser, useOrganizationList, useOrganization } from "@clerk/clerk-react";
+import {
+  useUser,
+  useOrganizationList,
+  useOrganization,
+} from "@clerk/clerk-react";
 import { useNavigate } from "react-router";
 import { useQuery } from "convex/react";
 import { api } from "@repo/convex/_generated/api";
+import { Loader } from "lucide-react";
 
 type OnboardingStep =
   | "checking-auth"
@@ -19,12 +24,15 @@ export function OnboardingPage() {
   const { organization: activeOrg } = useOrganization();
 
   const [step, setStep] = useState<OnboardingStep>("checking-auth");
-  const [selectedOrg, setSelectedOrg] = useState<{ id: string; slug: string | null } | null>(null);
+  const [selectedOrg, setSelectedOrg] = useState<{
+    id: string;
+    slug: string | null;
+  } | null>(null);
 
   // Check if selected org has GitHub installation
   const installation = useQuery(
     api.github.getInstallation,
-    selectedOrg?.id ? {} : "skip"
+    selectedOrg?.id ? {} : "skip",
   );
 
   useEffect(() => {
@@ -101,14 +109,14 @@ export function OnboardingPage() {
     "checking-auth": "Checking authentication...",
     "checking-org": "Loading your organizations...",
     "checking-installation": "Verifying GitHub connection...",
-    "redirecting": "Redirecting...",
+    redirecting: "Redirecting...",
   };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen">
-      <div className="text-center space-y-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-        <p className="text-lg text-gray-600">{stepMessages[step]}</p>
+      <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+        <Loader className="size-4 animate-spin" />
+        <p className="text-sm">{stepMessages[step]}</p>
       </div>
     </div>
   );

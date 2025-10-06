@@ -187,7 +187,7 @@ export const getInstallation = query({
     }),
     v.null(),
   ),
-  handler: async (ctx, args) => {
+  handler: async (ctx) => {
     // Get orgId from authenticated user
     const identity = await ctx.auth.getUserIdentity();
     if (!identity?.orgId || typeof identity.orgId !== "string") {
@@ -280,31 +280,50 @@ export const listRepositories = action({
     // Get installation access token
     const { token } = await auth({ type: "installation" });
 
-    // Fetch repositories
-    const response: Response = await fetch(
-      "https://api.github.com/installation/repositories",
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28",
-        },
-      },
-    );
+    // Fetch all repositories with pagination
+    let allRepos: Array<{
+      id: number;
+      name: string;
+      full_name: string;
+      description: string | null;
+      private: boolean;
+      html_url: string;
+    }> = [];
+    let page = 1;
+    let hasMore = true;
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("GitHub API error:", response.status, errorText);
-      throw new Error(`GitHub API returned ${response.status}`);
+    while (hasMore) {
+      const response: Response = await fetch(
+        `https://api.github.com/installation/repositories?per_page=100&page=${page}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+          },
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("GitHub API error:", response.status, errorText);
+        throw new Error(`GitHub API returned ${response.status}`);
+      }
+
+      const dataJson = await response.json();
+
+      // Validate GitHub API response with Zod
+      const data = githubRepositoriesResponseSchema.parse(dataJson);
+
+      allRepos = allRepos.concat(data.repositories);
+
+      // Check if there are more pages
+      hasMore = data.repositories.length === 100;
+      page++;
     }
 
-    const dataJson = await response.json();
-
-    // Validate GitHub API response with Zod
-    const data = githubRepositoriesResponseSchema.parse(dataJson);
-
     // Map to simpler structure
-    return data.repositories.map((repo) => ({
+    return allRepos.map((repo) => ({
       id: repo.id,
       name: repo.name,
       fullName: repo.full_name,

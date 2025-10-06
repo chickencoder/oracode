@@ -1,6 +1,6 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
-import { api, internal } from "./_generated/api";
+import { internal } from "./_generated/api";
 import { z } from "zod";
 
 // Zod schema for GitHub installation response
@@ -86,7 +86,7 @@ const handleGitHubCallback = httpAction(async (ctx, request) => {
       const installation = githubInstallationSchema.parse(installationJson);
 
       // Store installation in Convex (will create Clerk org)
-      const result = await ctx.runMutation(internal.github.storeInstallation, {
+      await ctx.runMutation(internal.github.storeInstallation, {
         stateToken: state,
         installationId: parseInt(installationId),
         githubOrgId: installation.account.id,
