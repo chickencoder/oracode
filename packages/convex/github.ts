@@ -6,18 +6,9 @@ import {
   internalMutation,
   internalAction,
 } from "./_generated/server";
-import { api, internal } from "./_generated/api";
+import { api } from "./_generated/api";
 import { createAppAuth } from "@octokit/auth-app";
 import { z } from "zod";
-
-// Zod schemas for GitHub API responses
-const githubInstallationSchema = z.object({
-  id: z.number(),
-  account: z.object({
-    id: z.number(),
-    login: z.string(),
-  }),
-});
 
 const githubRepositorySchema = z.object({
   id: z.number(),
@@ -117,12 +108,11 @@ export const storeInstallation = internalMutation({
   },
 });
 
-
 // Internal: Generate GitHub App JWT for API calls
 export const generateAppToken = internalAction({
   args: {},
   returns: v.string(),
-  handler: async (ctx, args) => {
+  handler: async () => {
     const appId = process.env.GITHUB_APP_ID;
     const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
 
@@ -154,7 +144,6 @@ export const generateAppToken = internalAction({
     return token;
   },
 });
-
 
 // Public: Link Clerk organization to GitHub installation
 export const linkOrganizationToInstallation = mutation({
@@ -238,7 +227,6 @@ export const listRepositories = action({
   ),
   handler: async (
     ctx,
-    args,
   ): Promise<
     Array<{
       id: number;
