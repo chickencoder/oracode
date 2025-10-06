@@ -1,10 +1,8 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
-import { checkProjectPermission } from "./auth";
 
-export const getActiveSandbox = query({
+export const getActiveSandboxByIds = query({
   args: {
-    orgId: v.string(),
     projectId: v.id("projects"),
     branchId: v.id("branches"),
   },
@@ -22,13 +20,15 @@ export const getActiveSandbox = query({
     v.null()
   ),
   handler: async (ctx, args) => {
-    // Check permissions
-    await checkProjectPermission(ctx, args.orgId, args.projectId, ["read"]);
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Unauthorized: Not authenticated");
+    }
 
-    // Verify project belongs to org
+    // Verify project belongs to user
     const project = await ctx.db.get(args.projectId);
-    if (!project || project.orgId !== args.orgId) {
-      throw new Error("Project not found in organization");
+    if (!project || project.userId !== identity.tokenIdentifier) {
+      throw new Error("Project not found");
     }
 
     // Get active sandbox
@@ -46,7 +46,6 @@ export const getActiveSandbox = query({
 
 export const createSandbox = mutation({
   args: {
-    orgId: v.string(),
     projectId: v.id("projects"),
     branchId: v.id("branches"),
     sandboxId: v.string(),
@@ -54,13 +53,15 @@ export const createSandbox = mutation({
   },
   returns: v.id("sandboxes"),
   handler: async (ctx, args) => {
-    // Check permissions
-    await checkProjectPermission(ctx, args.orgId, args.projectId, ["create"]);
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Unauthorized: Not authenticated");
+    }
 
-    // Verify project belongs to org
+    // Verify project belongs to user
     const project = await ctx.db.get(args.projectId);
-    if (!project || project.orgId !== args.orgId) {
-      throw new Error("Project not found in organization");
+    if (!project || project.userId !== identity.tokenIdentifier) {
+      throw new Error("Project not found");
     }
 
     // Create sandbox
@@ -79,20 +80,21 @@ export const createSandbox = mutation({
 
 export const updateSandboxStatus = mutation({
   args: {
-    orgId: v.string(),
     projectId: v.id("projects"),
     sandboxRecordId: v.id("sandboxes"),
     status: v.union(v.literal("active"), v.literal("stopped")),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    // Check permissions
-    await checkProjectPermission(ctx, args.orgId, args.projectId, ["update"]);
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Unauthorized: Not authenticated");
+    }
 
-    // Verify project belongs to org
+    // Verify project belongs to user
     const project = await ctx.db.get(args.projectId);
-    if (!project || project.orgId !== args.orgId) {
-      throw new Error("Project not found in organization");
+    if (!project || project.userId !== identity.tokenIdentifier) {
+      throw new Error("Project not found");
     }
 
     // Verify sandbox belongs to project
@@ -107,5 +109,42 @@ export const updateSandboxStatus = mutation({
     });
 
     return null;
+  },
+});
+
+export const getActiveSandbox = query({
+  args: {
+    sandboxId: v.id("sandboxes"),
+  },
+  returns: v.union(
+    v.object({
+      _id: v.id("sandboxes"),
+      _creationTime: v.number(),
+      projectId: v.id("projects"),
+      branchId: v.id("branches"),
+      sandboxId: v.string(),
+      domain: v.string(),
+      status: v.union(v.literal("active"), v.literal("stopped")),
+      createdAt: v.number(),
+    }),
+    v.null()
+  ),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Unauthorized: Not authenticated");
+    }
+
+    const sandbox = await ctx.db.get(args.sandboxId);
+    if (!sandbox) {
+      return null;
+    }
+
+    const project = await ctx.db.get(sandbox.projectId);
+    if (!project || project.userId !== identity.tokenIdentifier) {
+      throw new Error("Unauthorized: Not your project");
+    }
+
+    return sandbox;
   },
 });

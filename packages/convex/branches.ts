@@ -1,10 +1,8 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { checkProjectPermission } from "./auth";
 
 export const getBranchesByProject = query({
   args: {
-    orgId: v.string(),
     projectId: v.id("projects"),
   },
   returns: v.array(
@@ -16,17 +14,18 @@ export const getBranchesByProject = query({
       commitSha: v.string(),
       commitUrl: v.string(),
       protected: v.boolean(),
-      orgId: v.optional(v.string()),
     }),
   ),
   handler: async (ctx, args) => {
-    // Check permissions
-    await checkProjectPermission(ctx, args.orgId, args.projectId, ["read"]);
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Unauthorized: Not authenticated");
+    }
 
-    // Verify project belongs to org
+    // Verify project belongs to user
     const project = await ctx.db.get(args.projectId);
-    if (!project || project.orgId !== args.orgId) {
-      throw new Error("Project not found in organization");
+    if (!project || project.userId !== identity.tokenIdentifier) {
+      throw new Error("Project not found");
     }
 
     // Get branches for this project
@@ -40,7 +39,6 @@ export const getBranchesByProject = query({
 
 export const upsertBranch = mutation({
   args: {
-    orgId: v.string(),
     projectId: v.id("projects"),
     name: v.string(),
     commitSha: v.string(),
@@ -49,13 +47,15 @@ export const upsertBranch = mutation({
   },
   returns: v.id("branches"),
   handler: async (ctx, args) => {
-    // Check permissions
-    await checkProjectPermission(ctx, args.orgId, args.projectId, ["update"]);
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Unauthorized: Not authenticated");
+    }
 
-    // Verify project belongs to org
+    // Verify project belongs to user
     const project = await ctx.db.get(args.projectId);
-    if (!project || project.orgId !== args.orgId) {
-      throw new Error("Project not found in organization");
+    if (!project || project.userId !== identity.tokenIdentifier) {
+      throw new Error("Project not found");
     }
 
     // Check if branch already exists
@@ -71,7 +71,6 @@ export const upsertBranch = mutation({
         commitSha: args.commitSha,
         commitUrl: args.commitUrl,
         protected: args.protected,
-        orgId: args.orgId,
       });
       return existingBranch._id;
     } else {
@@ -82,7 +81,6 @@ export const upsertBranch = mutation({
         commitSha: args.commitSha,
         commitUrl: args.commitUrl,
         protected: args.protected,
-        orgId: args.orgId,
       });
       return branchId;
     }
@@ -91,7 +89,6 @@ export const upsertBranch = mutation({
 
 export const syncBranchesFromGitHub = mutation({
   args: {
-    orgId: v.string(),
     projectId: v.id("projects"),
     branches: v.array(
       v.object({
@@ -104,13 +101,15 @@ export const syncBranchesFromGitHub = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    // Check permissions
-    await checkProjectPermission(ctx, args.orgId, args.projectId, ["update"]);
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Unauthorized: Not authenticated");
+    }
 
-    // Verify project belongs to org
+    // Verify project belongs to user
     const project = await ctx.db.get(args.projectId);
-    if (!project || project.orgId !== args.orgId) {
-      throw new Error("Project not found in organization");
+    if (!project || project.userId !== identity.tokenIdentifier) {
+      throw new Error("Project not found");
     }
 
     // Get existing branches for this project
@@ -142,7 +141,6 @@ export const syncBranchesFromGitHub = mutation({
             commitSha: branch.commitSha,
             commitUrl: branch.commitUrl,
             protected: branch.protected,
-            orgId: args.orgId,
           });
         }
       } else {
@@ -153,7 +151,6 @@ export const syncBranchesFromGitHub = mutation({
           commitSha: branch.commitSha,
           commitUrl: branch.commitUrl,
           protected: branch.protected,
-          orgId: args.orgId,
         });
       }
     }

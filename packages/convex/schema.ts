@@ -14,6 +14,7 @@ export default defineSchema({
     sessionId: v.id("sessions"),
   }).index("by_session", ["sessionId"]),
   projects: defineTable({
+    userId: v.string(),
     name: v.string(),
     fullName: v.string(),
     owner: v.string(),
@@ -24,14 +25,15 @@ export default defineSchema({
     installCommand: v.string(),
     devCommand: v.string(),
     port: v.string(),
-  }).index("by_owner", ["owner"]),
+  })
+    .index("by_owner", ["owner"])
+    .index("by_user", ["userId"]),
   branches: defineTable({
     projectId: v.id("projects"),
     name: v.string(),
     commitSha: v.string(),
     commitUrl: v.string(),
     protected: v.boolean(),
-    orgId: v.optional(v.string()),
   }).index("by_project", ["projectId"]),
   sandboxes: defineTable({
     projectId: v.id("projects"),

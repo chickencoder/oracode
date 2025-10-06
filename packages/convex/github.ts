@@ -1,7 +1,5 @@
 import { v } from "convex/values";
 import { action } from "./_generated/server";
-import { authComponent } from "./auth";
-import { components } from "./_generated/api";
 
 export const getGithubRepos = action({
   args: {},
@@ -30,64 +28,22 @@ export const getGithubRepos = action({
   ),
   handler: async (ctx) => {
     // Get the current authenticated user
-    const user = await authComponent.getAuthUser(ctx);
+    const identity = await ctx.auth.getUserIdentity();
 
-    if (!user) {
+    if (!identity) {
       return {
         success: false,
         error: "Not authenticated",
       };
     }
 
-    // Query the account table to find the GitHub account for this user
-    const account = await ctx.runQuery(
-      components.betterAuth.adapter.findOne,
-      {
-        model: "account",
-        where: [
-          {
-            field: "userId",
-            operator: "eq",
-            value: user.userId || user._id,
-          },
-          {
-            field: "providerId",
-            operator: "eq",
-            value: "github",
-          },
-        ],
-      },
-    );
-
-    if (!account) {
-      return {
-        success: false,
-        error: "GitHub account not linked",
-      };
-    }
-
-    const accessToken = account.accessToken;
+    // Get GitHub access token from Convex Auth
+    const accessToken = identity.githubAccessToken as string | undefined;
 
     if (!accessToken) {
       return {
         success: false,
         error: "No GitHub access token found. Please re-authenticate.",
-      };
-    }
-
-    // Check if the account has the required scope
-    // GitHub scopes can be stored as comma-separated or space-separated
-    const scopeString = account.scope || "";
-    const scopes = scopeString.includes(",")
-      ? scopeString.split(",").map((s: string) => s.trim())
-      : scopeString.split(" ").map((s: string) => s.trim());
-    const hasRepoScope = scopes.includes("repo") || scopes.includes("public_repo");
-
-    if (!hasRepoScope) {
-      return {
-        success: false,
-        error:
-          "Missing required permissions. Please re-authenticate to grant repository access.",
       };
     }
 
@@ -163,45 +119,18 @@ export const getBranches = action({
     }),
   ),
   handler: async (ctx, args) => {
-
     // Get the current authenticated user
-    const user = await authComponent.getAuthUser(ctx);
+    const identity = await ctx.auth.getUserIdentity();
 
-    if (!user) {
+    if (!identity) {
       return {
         success: false,
         error: "Not authenticated",
       };
     }
 
-    // Query the account table to find the GitHub account for this user
-    const account = await ctx.runQuery(
-      components.betterAuth.adapter.findOne,
-      {
-        model: "account",
-        where: [
-          {
-            field: "userId",
-            operator: "eq",
-            value: user.userId || user._id,
-          },
-          {
-            field: "providerId",
-            operator: "eq",
-            value: "github",
-          },
-        ],
-      },
-    );
-
-    if (!account) {
-      return {
-        success: false,
-        error: "GitHub account not linked",
-      };
-    }
-
-    const accessToken = account.accessToken;
+    // Get GitHub access token from Convex Auth
+    const accessToken = identity.githubAccessToken as string | undefined;
 
     if (!accessToken) {
       return {

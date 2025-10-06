@@ -1,20 +1,11 @@
 "use client";
 
+import { SignInButton, SignedIn, SignedOut } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
-import { authClient } from "@/lib/auth-client";
-import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 
-export default function Index() {
-  const [isPending, startTransition] = useTransition();
-
-  const signIn = async () => {
-    startTransition(async () => {
-      const data = await authClient.signIn.social({
-        provider: "github",
-      });
-      console.log({ data });
-    });
-  };
+export default function SignInPage() {
+  const router = useRouter();
 
   return (
     <main className="flex flex-col items-center justify-center h-screen">
@@ -22,9 +13,16 @@ export default function Index() {
       <p className="font-mono text-sm text-muted-foreground mb-12">
         Claude Code in your browser
       </p>
-      <Button onClick={signIn} loading={isPending}>
-        Continue with GitHub
-      </Button>
+      <SignedOut>
+        <SignInButton mode="modal">
+          <Button>Sign In</Button>
+        </SignInButton>
+      </SignedOut>
+      <SignedIn>
+        <Button onClick={() => router.push("/projects")}>
+          Continue to projects
+        </Button>
+      </SignedIn>
     </main>
   );
 }

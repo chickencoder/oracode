@@ -1,17 +1,15 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { checkProjectPermission } from "./auth";
 
 export const getProjectById = query({
   args: {
-    orgId: v.string(),
     projectId: v.id("projects"),
   },
   returns: v.union(
     v.object({
       _id: v.id("projects"),
       _creationTime: v.number(),
-      orgId: v.string(),
+      userId: v.string(),
       name: v.string(),
       fullName: v.string(),
       owner: v.string(),
@@ -26,14 +24,16 @@ export const getProjectById = query({
     v.null(),
   ),
   handler: async (ctx, args) => {
-    // Check permissions
-    await checkProjectPermission(ctx, args.orgId, args.projectId, ["read"]);
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Unauthorized: Not authenticated");
+    }
 
     // Get project by ID
     const project = await ctx.db.get(args.projectId);
 
-    // Defense in depth: verify project belongs to org
-    if (!project || project.orgId !== args.orgId) {
+    // Verify project belongs to user
+    if (!project || project.userId !== identity.tokenIdentifier) {
       return null;
     }
 
@@ -42,14 +42,12 @@ export const getProjectById = query({
 });
 
 export const getUserProjects = query({
-  args: {
-    orgId: v.string(),
-  },
+  args: {},
   returns: v.array(
     v.object({
       _id: v.id("projects"),
       _creationTime: v.number(),
-      orgId: v.string(),
+      userId: v.string(),
       name: v.string(),
       fullName: v.string(),
       owner: v.string(),
@@ -62,14 +60,16 @@ export const getUserProjects = query({
       port: v.string(),
     }),
   ),
-  handler: async (ctx, args) => {
-    // Check permissions
-    await checkProjectPermission(ctx, args.orgId, null, ["read"]);
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Unauthorized: Not authenticated");
+    }
 
-    // Defense in depth: filter by orgId
+    // Get all projects for this user
     const projects = await ctx.db
       .query("projects")
-      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .withIndex("by_user", (q) => q.eq("userId", identity.tokenIdentifier))
       .collect();
 
     return projects;
@@ -78,7 +78,6 @@ export const getUserProjects = query({
 
 export const createProject = mutation({
   args: {
-    orgId: v.string(),
     name: v.string(),
     fullName: v.string(),
     owner: v.string(),
@@ -92,12 +91,14 @@ export const createProject = mutation({
   },
   returns: v.id("projects"),
   handler: async (ctx, args) => {
-    // Check permissions
-    await checkProjectPermission(ctx, args.orgId, null, ["create"]);
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Unauthorized: Not authenticated");
+    }
 
-    // Insert project with orgId
+    // Insert project with userId
     const projectId = await ctx.db.insert("projects", {
-      orgId: args.orgId,
+      userId: identity.tokenIdentifier,
       name: args.name,
       fullName: args.fullName,
       owner: args.owner,

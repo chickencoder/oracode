@@ -31,7 +31,7 @@ export const launchSandboxAction = actionClient
 
     // Check if there's already an active sandbox for this project/branch
     const existingSandbox = await convexClient.query(
-      api.sandboxes.getActiveSandbox,
+      api.sandboxes.getActiveSandboxByIds,
       { projectId, branchId },
     );
 
@@ -41,7 +41,7 @@ export const launchSandboxAction = actionClient
       // Get or create a session for this sandbox
       let session = await convexClient.query(
         api.sessions.getLatestSessionBySandbox,
-        { sandboxId: existingSandbox._id },
+        { projectId, sandboxId: existingSandbox._id },
       );
 
       if (!session) {
@@ -49,6 +49,7 @@ export const launchSandboxAction = actionClient
         const sessionId = await convexClient.mutation(
           api.sessions.createSession,
           {
+            projectId,
             sandboxId: existingSandbox._id,
           },
         );
@@ -143,6 +144,7 @@ export const launchSandboxAction = actionClient
       const sessionId = await convexClient.mutation(
         api.sessions.createSession,
         {
+          projectId,
           sandboxId,
         },
       );

@@ -2,17 +2,17 @@
 
 import { ReactNode } from "react";
 import { ConvexReactClient } from "convex/react";
-import { authClient } from "@/lib/auth-client";
-import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
+import { ConvexProviderWithClerk } from "convex/react-clerk";
+import { useAuth } from "@clerk/nextjs";
 
 const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!, {
-  expectAuth: true,
+  verbose: true,
 });
 
 export function ConvexClientProvider({ children }: { children: ReactNode }) {
   return (
-    <ConvexBetterAuthProvider client={convex} authClient={authClient}>
+    <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
       {children}
-    </ConvexBetterAuthProvider>
+    </ConvexProviderWithClerk>
   );
 }

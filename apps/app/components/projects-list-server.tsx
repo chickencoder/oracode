@@ -1,21 +1,20 @@
 import { preloadQuery } from "convex/nextjs";
 import { api } from "@repo/convex/_generated/api";
 import { ProjectsListClient } from "./projects-list-client";
-import { getToken } from "@/lib/auth-server";
+import { auth } from "@clerk/nextjs/server";
 
 type ProjectsListServerProps = {
   searchQuery: string;
-  orgId: string;
 };
 
 export async function ProjectsListServer({
   searchQuery,
-  orgId,
 }: ProjectsListServerProps) {
+  const { getToken } = await auth();
   const preloadedProjects = await preloadQuery(
     api.projects.getUserProjects,
-    { orgId },
-    { token: await getToken() },
+    {},
+    { token: await getToken({ template: "convex" }) },
   );
 
   return (

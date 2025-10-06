@@ -9,17 +9,15 @@ type ProjectsPageProps = {
 
 export default async function ProjectsPage({
   searchParams,
-  params,
 }: ProjectsPageProps) {
-  const { orgId } = await params;
   const { q: searchQuery = "" } = await searchParams;
 
   return (
     <div className="space-y-8">
       <DashboardNavigation />
       <div className="space-y-4">
-        <ProjectsToolbar defaultSearchQuery={searchQuery} orgId={orgId} />
-        <ProjectsListServer searchQuery={searchQuery} orgId={orgId} />
+        <ProjectsToolbar defaultSearchQuery={searchQuery} />
+        <ProjectsListServer searchQuery={searchQuery} />
       </div>
     </div>
   );
