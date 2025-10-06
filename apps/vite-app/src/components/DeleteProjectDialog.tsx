@@ -50,9 +50,8 @@ export function DeleteProjectDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete project</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete <strong>{project.name}</strong>?
-            This action cannot be undone. All sessions associated with this
-            project will also be deleted.
+            Are you sure you want to delete this project? This action cannot be
+            undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
