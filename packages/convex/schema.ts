@@ -18,4 +18,27 @@ export default defineSchema({
     sandboxId: v.string(),
     createdAt: v.number(),
   }),
+
+  // GitHub App installation tracking
+  githubInstallations: defineTable({
+    orgId: v.string(), // Link to Clerk organization
+    githubOrgId: v.number(), // GitHub organization ID
+    githubOrgLogin: v.string(), // GitHub organization login name
+    installationId: v.number(), // GitHub App installation ID
+    installedBy: v.string(), // User ID who installed the app
+    installedAt: v.number(), // Installation timestamp
+  })
+    .index("by_org", ["orgId"])
+    .index("by_installation_id", ["installationId"]),
+
+  // GitHub App installation state tokens (for OAuth-like flow)
+  githubAppState: defineTable({
+    stateToken: v.string(), // Random state token for flow security
+    userId: v.string(), // User initiating the installation
+    orgId: v.optional(v.string()), // Org being set up (if already exists)
+    createdAt: v.number(), // For cleanup of old/expired states
+    expiresAt: v.number(), // State token expiration
+  })
+    .index("by_state", ["stateToken"])
+    .index("by_user", ["userId"]),
 });

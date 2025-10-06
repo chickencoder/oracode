@@ -14,14 +14,17 @@
     "type-check": "turbo type-check"
   },
   "devDependencies": {
-    "prettier": "^3.5.3",
+    "prettier": "^3.6.2",
     "turbo": "^2.5.8",
-    "typescript": "^5"
+    "typescript": "^5.9.3"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild",
       "@tailwindcss/oxide"
-    ]
+    ],
+    "overrides": {
+      "vite": "npm:rolldown-vite@7.1.14"
+    }
   }
 }
