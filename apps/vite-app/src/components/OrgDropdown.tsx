@@ -78,9 +78,9 @@ export function OrgDropdown({
       </PopoverTrigger>
       <PopoverContent className="w-52 p-0">
         <Command>
-          <CommandInput placeholder="Search organization..." />
+          <CommandInput placeholder="Search accounts..." />
           <CommandList>
-            <CommandEmpty>No organization found.</CommandEmpty>
+            <CommandEmpty>No account found.</CommandEmpty>
             <CommandGroup>
               {orgs.map((org) => (
                 <CommandItem

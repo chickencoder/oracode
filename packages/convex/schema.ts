@@ -14,10 +14,10 @@ export default defineSchema({
     sessionId: v.id("sessions"),
   }).index("by_session", ["sessionId"]),
   sessions: defineTable({
+    projectId: v.id("projects"),
     agentSessionId: v.optional(v.string()),
-    sandboxId: v.string(),
     createdAt: v.number(),
-  }),
+  }).index("by_project", ["projectId"]),
 
   // GitHub App installation tracking
   githubInstallations: defineTable({

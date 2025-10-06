@@ -223,8 +223,13 @@ export function NewProjectDialog({ children }: NewProjectDialogProps) {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? "Creating..." : "Create Project"}
+              <Button
+                type="submit"
+                loading={form.formState.isSubmitting}
+                disabled={form.formState.isSubmitting}
+                className="w-30"
+              >
+                Create project
               </Button>
             </div>
           </form>

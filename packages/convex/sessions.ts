@@ -3,12 +3,12 @@ import { query, mutation } from "./_generated/server";
 
 export const createSession = mutation({
   args: {
-    sandboxId: v.string(),
+    projectId: v.id("projects"),
   },
   returns: v.id("sessions"),
   handler: async (ctx, args) => {
     const sessionId = await ctx.db.insert("sessions", {
-      sandboxId: args.sandboxId,
+      projectId: args.projectId,
       createdAt: Date.now(),
     });
 
@@ -36,14 +36,39 @@ export const getSessionById = query({
     v.object({
       _id: v.id("sessions"),
       _creationTime: v.number(),
+      projectId: v.id("projects"),
       agentSessionId: v.optional(v.string()),
-      sandboxId: v.string(),
       createdAt: v.number(),
     }),
     v.null()
   ),
   handler: async (ctx, args) => {
     return await ctx.db.get(args.sessionId);
+  },
+});
+
+// Get all sessions for a project
+export const getSessionsByProject = query({
+  args: {
+    projectId: v.id("projects"),
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id("sessions"),
+      _creationTime: v.number(),
+      projectId: v.id("projects"),
+      agentSessionId: v.optional(v.string()),
+      createdAt: v.number(),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const sessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+      .order("desc")
+      .collect();
+
+    return sessions;
   },
 });
 
