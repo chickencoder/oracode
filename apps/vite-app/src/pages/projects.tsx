@@ -4,10 +4,10 @@ import { useQueryState } from "nuqs";
 import { useOrgNavigation } from "../hooks/useOrgNavigation";
 import { useProjects, type Project } from "../hooks/useProjects";
 import { Input } from "@/components/ui/input";
-import { NewProjectDialog } from "@/components/NewProjectDialog";
-import { NewSessionDialog } from "@/components/NewSessionDialog";
-import { EditProjectDialog } from "@/components/EditProjectDialog";
-import { DeleteProjectDialog } from "@/components/DeleteProjectDialog";
+import { NewProjectDialog } from "@/components/new-project-dialog";
+import { NewSessionDialog } from "@/components/new-session-dialog";
+import { EditProjectDialog } from "@/components/edit-project-dialog";
+import { DeleteProjectDialog } from "@/components/delete-project-dialog";
 import {
   Card,
   CardTitle,
@@ -24,7 +24,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { EllipsisVertical, Play, Rocket, Settings, Trash2 } from "lucide-react";
+import { EllipsisVertical, Rocket, Settings, Trash2 } from "lucide-react";
 
 export function ProjectsPage() {
   const { orgSlug } = useParams<{ orgSlug: string }>();

@@ -1,6 +1,6 @@
 import { useOrganizationList, UserButton } from "@clerk/clerk-react";
 import { NavLink, useNavigate, useParams } from "react-router";
-import { OrgDropdown } from "./OrgDropdown";
+import { OrgDropdown } from "./org-dropdown";
 import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
 

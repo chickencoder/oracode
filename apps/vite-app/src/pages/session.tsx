@@ -13,11 +13,6 @@ export function SessionPage() {
     sessionId ? { sessionId: sessionId as Id<"sessions"> } : "skip"
   );
 
-  const project = useQuery(
-    api.projects.getProjects,
-    {} // We'll need to filter this or create a getProjectById query
-  );
-
   useEffect(() => {
     if (session === null) {
       // Session not found, redirect back

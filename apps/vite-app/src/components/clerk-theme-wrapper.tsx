@@ -1,7 +1,7 @@
 import { ClerkProvider } from "@clerk/react-router";
 import { dark } from "@clerk/themes";
 import { useTheme } from "./theme-provider";
-import { ReactNode, useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 interface ClerkThemeWrapperProps {
   publishableKey: string;

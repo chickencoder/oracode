@@ -9,13 +9,13 @@ import { ConvexReactClient } from "convex/react";
 import { NuqsAdapter } from "nuqs/adapters/react-router";
 import { ThemeProvider } from "./components/theme-provider";
 import { ClerkThemeWrapper } from "./components/clerk-theme-wrapper";
-import { SignInPage } from "./pages/SignIn.tsx";
-import { OnboardingPage } from "./pages/Onboarding.tsx";
-import { InstallGitHubAppPage } from "./pages/InstallGitHubApp.tsx";
-import { DashboardLayout } from "./layouts/DashboardLayout.tsx";
-import { ProjectsPage } from "./pages/Projects.tsx";
-import { SettingsPage } from "./pages/Settings.tsx";
-import { SessionPage } from "./pages/Session.tsx";
+import { SignInPage } from "./pages/sign-in.tsx";
+import { OnboardingPage } from "./pages/onboarding.tsx";
+import { InstallGitHubAppPage } from "./pages/install-github-app.tsx";
+import { DashboardLayout } from "./layouts/dashboard-layout.tsx";
+import { ProjectsPage } from "./pages/projects.tsx";
+import { SettingsPage } from "./pages/settings.tsx";
+import { SessionPage } from "./pages/session.tsx";
 
 // Import your Publishable Key
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;

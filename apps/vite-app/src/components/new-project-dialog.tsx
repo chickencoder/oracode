@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { RepositoryDropdown } from "./RepositoryDropdown";
+import { RepositoryDropdown } from "./repository-dropdown";
 import { useRepositories } from "@/hooks/useRepositories";
 
 const formSchema = z.object({
