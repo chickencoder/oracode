@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route } from "react-router";
 import { ClerkProvider, useAuth } from "@clerk/react-router";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexReactClient } from "convex/react";
+import { NuqsAdapter } from "nuqs/adapters/react-router";
+import { ThemeProvider } from "./components/theme-provider";
 import { SignInPage } from "./pages/SignIn.tsx";
 import { OnboardingPage } from "./pages/Onboarding.tsx";
 import { InstallGitHubAppPage } from "./pages/InstallGitHubApp.tsx";
@@ -26,22 +28,26 @@ const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
-      <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
-        <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-          <Routes>
-            <Route path="/" element={<OnboardingPage />} />
-            <Route path="/sign-in/*" element={<SignInPage />} />
-            <Route
-              path="/install-github-app"
-              element={<InstallGitHubAppPage />}
-            />
-            <Route path="/:orgSlug" element={<DashboardLayout />}>
-              <Route index element={<ProjectsPage />} />
-              <Route path="settings" element={<SettingsPage />} />
-            </Route>
-          </Routes>
-        </ConvexProviderWithClerk>
-      </ClerkProvider>
+      <NuqsAdapter>
+        <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
+          <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+            <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+              <Routes>
+                <Route path="/" element={<OnboardingPage />} />
+                <Route path="/sign-in/*" element={<SignInPage />} />
+                <Route
+                  path="/install-github-app"
+                  element={<InstallGitHubAppPage />}
+                />
+                <Route path="/:orgSlug" element={<DashboardLayout />}>
+                  <Route index element={<ProjectsPage />} />
+                  <Route path="settings" element={<SettingsPage />} />
+                </Route>
+              </Routes>
+            </ConvexProviderWithClerk>
+          </ClerkProvider>
+        </ThemeProvider>
+      </NuqsAdapter>
     </BrowserRouter>
   </StrictMode>,
 );

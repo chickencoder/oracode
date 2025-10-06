@@ -39,7 +39,7 @@ export function DashboardHeader() {
   return (
     <header className="bg-card mb-4">
       <div className="border-b">
-        <div className="flex items-center justify-between p-4 max-w-7xl mx-auto">
+        <div className="flex items-center justify-between p-4">
           <OrgDropdown
             orgs={orgs}
             value={orgSlug}
@@ -54,7 +54,7 @@ export function DashboardHeader() {
         </div>
       </div>
       <nav className="border-b">
-        <div className="max-w-7xl mx-auto flex items-center px-4 gap-1">
+        <div className="flex items-center px-4 gap-1">
           {tabs.map((tab) => {
             const fullPath = orgSlug ? `/${orgSlug}${tab.href}` : tab.href;
             return (

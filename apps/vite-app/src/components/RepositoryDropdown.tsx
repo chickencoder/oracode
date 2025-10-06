@@ -51,7 +51,7 @@ export function RepositoryDropdown({
           disabled={disabled}
         >
           {selectedRepo ? (
-            <span className="truncate">{selectedRepo.fullName}</span>
+            <span className="truncate">{selectedRepo.name}</span>
           ) : (
             "Select repository..."
           )}
