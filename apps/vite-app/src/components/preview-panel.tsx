@@ -8,7 +8,7 @@ import {
   WebPreviewNavigationButton,
 } from "@/components/ai-elements/web-preview";
 import { ExternalLinkIcon, RefreshCcwIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 
 interface PreviewPanelProps {
   domain: string;
@@ -29,6 +29,13 @@ export function PreviewPanel({
 }: PreviewPanelProps) {
   const [url, setUrl] = useState(domain);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Update URL when domain prop changes
+  useEffect(() => {
+    if (domain) {
+      setUrl(domain);
+    }
+  }, [domain]);
 
   // Show error state
   if (hasError) {
