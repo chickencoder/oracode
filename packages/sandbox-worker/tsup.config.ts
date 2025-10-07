@@ -10,7 +10,7 @@ export default defineConfig({
   minify: false,
   target: "node18",
   platform: "node",
-  outDir: "dist/standalone",
+  outDir: "dist",
   outExtension: () => ({ js: ".js" }),
   // Bundle all dependencies except Node.js built-ins and modules that need to remain external
   external: [

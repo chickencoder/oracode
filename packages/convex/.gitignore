@@ -1,2 +1,5 @@
+# Convex generated files
+_generated/
 
-.env.local
+# Worker bundle (auto-generated)
+lib/worker_bundle_content.ts

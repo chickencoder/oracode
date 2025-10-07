@@ -38,6 +38,14 @@ export default defineSchema({
     timeoutAt: v.number(), // Expected timeout timestamp (createdAt + duration)
     timeoutDuration: v.number(), // Timeout in ms (e.g., 3600000 for 1h)
     error: v.optional(v.string()), // Error message if failed
+    loadingStage: v.optional(
+      v.union(
+        v.literal("provisioning"), // Creating Vercel VM
+        v.literal("cloning"), // Cloning repository
+        v.literal("installing"), // Running install command
+        v.literal("starting"), // Starting dev server
+      ),
+    ),
   })
     .index("by_session", ["sessionId"])
     .index("by_sandbox_id", ["sandboxId"]),

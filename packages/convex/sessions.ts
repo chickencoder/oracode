@@ -40,7 +40,7 @@ export const getSessionById = query({
       agentSessionId: v.optional(v.string()),
       createdAt: v.number(),
     }),
-    v.null()
+    v.null(),
   ),
   handler: async (ctx, args) => {
     // Get authenticated user
@@ -77,7 +77,7 @@ export const getSessionsByProject = query({
       projectId: v.id("projects"),
       agentSessionId: v.optional(v.string()),
       createdAt: v.number(),
-    })
+    }),
   ),
   handler: async (ctx, args) => {
     // Get authenticated user
@@ -122,7 +122,7 @@ export const getMessagesBySessionId = query({
       sessionId: v.id("sessions"),
       userId: v.string(),
       orgId: v.string(),
-    })
+    }),
   ),
   handler: async (ctx, args) => {
     // Get authenticated user
@@ -145,7 +145,7 @@ export const getMessagesBySessionId = query({
     return await ctx.db
       .query("messages")
       .withIndex("by_org_and_session", (q) =>
-        q.eq("orgId", orgId).eq("sessionId", args.sessionId)
+        q.eq("orgId", orgId).eq("sessionId", args.sessionId),
       )
       .order("asc")
       .collect();

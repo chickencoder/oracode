@@ -45,7 +45,7 @@ export const startSandboxAction = actionClient
 
       const convexClient = new ConvexClient(convexUrl);
       const sessionId = await convexClient.mutation(api.sessions.createSession, {
-        sandboxId: sandbox.sandboxId,
+        projectId: formData.projectId as Id<"projects">,
       });
       console.log("Session created:", sessionId);
 

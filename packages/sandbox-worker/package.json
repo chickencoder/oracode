@@ -14,7 +14,6 @@
     "dev": "tsup --watch",
     "dev:worker": "tsx watch src/index.ts",
     "build": "tsup",
-    "build:standalone": "tsup",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {

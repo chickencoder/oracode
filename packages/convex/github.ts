@@ -7,8 +7,8 @@ import {
   internalAction,
 } from "./_generated/server";
 import { api } from "./_generated/api";
-import { createAppAuth } from "@octokit/auth-app";
 import { z } from "zod";
+import { generateGitHubJWT, generateGitHubInstallationToken } from "./lib/github_auth";
 
 const githubRepositorySchema = z.object({
   id: z.number(),
@@ -113,35 +113,7 @@ export const generateAppToken = internalAction({
   args: {},
   returns: v.string(),
   handler: async () => {
-    const appId = process.env.GITHUB_APP_ID;
-    const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
-
-    if (!appId || !privateKey) {
-      throw new Error("GitHub App credentials not configured");
-    }
-
-    // Format the private key correctly if it's all on one line
-    let formattedKey = privateKey;
-    if (!privateKey.includes("\n")) {
-      formattedKey = privateKey
-        .replace(
-          "-----BEGIN PRIVATE KEY----- ",
-          "-----BEGIN PRIVATE KEY-----\n",
-        )
-        .replace(" -----END PRIVATE KEY-----", "\n-----END PRIVATE KEY-----")
-        .replace(/(.{64})/g, "$1\n");
-      formattedKey = formattedKey.replace(/\n\n/g, "\n").trim();
-    }
-
-    // Create auth instance without installation ID to get JWT
-    const auth = createAppAuth({
-      appId: parseInt(appId),
-      privateKey: formattedKey,
-    });
-
-    // Get JWT token
-    const { token } = await auth({ type: "app" });
-    return token;
+    return await generateGitHubJWT();
   },
 });
 
@@ -265,36 +237,10 @@ export const listRepositories = action({
       return [];
     }
 
-    // Generate installation token inline
-    const appId = process.env.GITHUB_APP_ID;
-    const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
-
-    if (!appId || !privateKey) {
-      throw new Error("GitHub App credentials not configured");
-    }
-
-    // Format the private key correctly if it's all on one line
-    let formattedKey = privateKey;
-    if (!privateKey.includes("\n")) {
-      formattedKey = privateKey
-        .replace(
-          "-----BEGIN PRIVATE KEY----- ",
-          "-----BEGIN PRIVATE KEY-----\n",
-        )
-        .replace(" -----END PRIVATE KEY-----", "\n-----END PRIVATE KEY-----")
-        .replace(/(.{64})/g, "$1\n");
-      formattedKey = formattedKey.replace(/\n\n/g, "\n").trim();
-    }
-
-    // Create auth instance
-    const auth = createAppAuth({
-      appId: parseInt(appId),
-      privateKey: formattedKey,
-      installationId: installation.installationId,
-    });
-
-    // Get installation access token
-    const { token } = await auth({ type: "installation" });
+    // Generate installation token
+    const token = await generateGitHubInstallationToken(
+      installation.installationId,
+    );
 
     // Fetch all repositories with pagination
     let allRepos: Array<{

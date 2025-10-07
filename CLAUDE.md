@@ -39,7 +39,7 @@ pnpm deploy           # Deploy Convex backend
 cd packages/sandbox-worker
 pnpm dev              # Build worker with watch mode (tsup)
 pnpm dev:worker       # Run worker with tsx watch
-pnpm build:standalone # Build standalone bundle for deployment
+pnpm build            # Build worker bundle for deployment
 ```
 
 The sandbox worker requires environment variables:
@@ -93,7 +93,7 @@ The worker uses:
 - **File synchronization**: Has file-watcher, file-sync, and R2 client for syncing sandbox files (in `src/sync/`)
 
 Build configuration:
-- **tsup**: Bundles to standalone Node.js executable in `dist/standalone/`
+- **tsup**: Bundles to Node.js executable in `dist/`
 - Externalizes `@anthropic-ai/claude-agent-sdk` and `@anthropic-ai/sdk`
 - Includes shebang for direct execution
 
@@ -187,4 +187,4 @@ The `components/ai-elements/` directory contains a custom component library for 
 - **Build Outputs**:
   - Next.js: `.next/` directory
   - Convex: Type generation in `_generated/`
-  - Sandbox worker: `dist/standalone/` for deployment bundle
+  - Sandbox worker: `dist/` for deployment bundle
