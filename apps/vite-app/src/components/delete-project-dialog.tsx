@@ -11,7 +11,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import type { Project } from "@/hooks/useProjects";
+import type { Project } from "@/hooks/use-projects";
 
 interface DeleteProjectDialogProps {
   project: Project | null;

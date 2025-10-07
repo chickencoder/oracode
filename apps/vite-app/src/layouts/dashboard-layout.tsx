@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
-import { useOrgNavigation } from "../hooks/useOrgNavigation";
+import { useOrgNavigation } from "../hooks/use-org-navigation";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { Outlet } from "react-router";
 

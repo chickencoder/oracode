@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAction } from "convex/react";
+import { useOrganization } from "@clerk/clerk-react";
 import { api } from "@repo/convex/_generated/api";
 
 export type Repository = {
@@ -12,13 +13,15 @@ export type Repository = {
 };
 
 export function useRepositories(enabled: boolean = true) {
+  const { organization } = useOrganization();
   const listRepositories = useAction(api.github.listRepositories);
   const [repos, setRepos] = useState<Repository[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!enabled) {
+    // Don't fetch if disabled or no active organization
+    if (!enabled || !organization) {
       return;
     }
 
@@ -35,7 +38,7 @@ export function useRepositories(enabled: boolean = true) {
         setRepos([]);
       })
       .finally(() => setLoading(false));
-  }, [enabled, listRepositories]);
+  }, [enabled, organization, listRepositories]);
 
   return { repos, loading, error };
 }

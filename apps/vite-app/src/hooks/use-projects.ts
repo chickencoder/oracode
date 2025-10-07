@@ -1,4 +1,5 @@
 import { useQuery } from "convex/react";
+import { useOrganization } from "@clerk/clerk-react";
 import { api } from "@repo/convex/_generated/api";
 import type { Id } from "@repo/convex/_generated/dataModel";
 
@@ -16,7 +17,12 @@ export type Project = {
 };
 
 export function useProjects() {
-  const projects = useQuery(api.projects.getProjects);
+  const { organization } = useOrganization();
+  // Skip query if no active organization to prevent auth errors
+  const projects = useQuery(
+    api.projects.getProjects,
+    organization ? {} : "skip"
+  );
 
   return {
     projects: projects ?? [],

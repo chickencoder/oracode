@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { useQueryState } from "nuqs";
-import { useOrgNavigation } from "../hooks/useOrgNavigation";
-import { useProjects, type Project } from "../hooks/useProjects";
-import { Input } from "@/components/ui/input";
+import { useOrgNavigation } from "../hooks/use-org-navigation";
+import { useProjects, type Project } from "../hooks/use-projects";
 import { NewProjectDialog } from "@/components/new-project-dialog";
 import { NewSessionDialog } from "@/components/new-session-dialog";
 import { EditProjectDialog } from "@/components/edit-project-dialog";
@@ -24,7 +23,27 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { EllipsisVertical, Rocket, Settings, Trash2 } from "lucide-react";
+import {
+  EllipsisVertical,
+  Folder,
+  Rocket,
+  SearchIcon,
+  Settings,
+  Trash2,
+} from "lucide-react";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 
 export function ProjectsPage() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
@@ -82,12 +101,17 @@ export function ProjectsPage() {
   return (
     <main className="p-4 max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between gap-2 md:gap-4">
-        <Input
-          placeholder="Search projects"
-          className="max-w-72"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <InputGroup className="max-w-72 bg-card">
+          <InputGroupInput
+            placeholder="Search projects"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <InputGroupAddon>
+            <SearchIcon />
+          </InputGroupAddon>
+        </InputGroup>
+
         <NewProjectDialog />
       </div>
 
@@ -181,13 +205,19 @@ export function ProjectsPage() {
           />
         </>
       ) : (
-        <div className="flex items-center justify-center min-h-[500px] border border-dashed rounded-md">
-          <span className="text-muted-foreground text-sm">
-            {search
-              ? `No projects found matching "${search}"`
-              : "Create a new project to get started"}
-          </span>
-        </div>
+        <Empty className="border border-dashed min-h-[500px]">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Folder />
+            </EmptyMedia>
+            <EmptyTitle>No projects found</EmptyTitle>
+            <EmptyDescription>
+              {search
+                ? `No projects found matching "${search}"`
+                : "Create a new project to get started"}
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       )}
     </main>
   );

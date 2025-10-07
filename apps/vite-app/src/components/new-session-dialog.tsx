@@ -7,7 +7,6 @@ import { formatDistanceToNow } from "date-fns";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -20,7 +19,15 @@ import {
 } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Project } from "@/hooks/useProjects";
+import type { Project } from "@/hooks/use-projects";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "./ui/empty";
+import { History } from "lucide-react";
 
 interface NewSessionDialogProps {
   project: Project | null;
@@ -70,11 +77,7 @@ export function NewSessionDialog({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{project.name}</DialogTitle>
-          <DialogDescription>
-            {project.description || "No description"}
-          </DialogDescription>
         </DialogHeader>
-
         <div className="space-y-6">
           <Button
             onClick={handleCreateSession}
@@ -82,7 +85,7 @@ export function NewSessionDialog({
             className="w-full"
             size="lg"
           >
-            Start a new session
+            New session
           </Button>
 
           <div className="space-y-3">
@@ -121,11 +124,17 @@ export function NewSessionDialog({
                   ))}
                 </div>
               ) : (
-                <div className="flex items-center justify-center border border-dashed rounded-md p-4 h-[256px]">
-                  <span className="text-muted-foreground text-sm">
-                    No sessions yet. Start your first session above.
-                  </span>
-                </div>
+                <Empty className="border border-dashed h-[256px]">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <History />
+                    </EmptyMedia>
+                    <EmptyTitle>No sessions found</EmptyTitle>
+                    <EmptyDescription>
+                      Start your first session above.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
               )}
             </ScrollArea>
           </div>

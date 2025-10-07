@@ -3,7 +3,7 @@ import { useOrganizationList, UserButton, useUser } from "@clerk/clerk-react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useMutation } from "convex/react";
 import { api } from "@repo/convex/_generated/api";
-import { useGitHubInstallation } from "../hooks/useGitHubInstallation";
+import { useGitHubInstallation } from "../hooks/use-git-hub-installation";
 import { normalizeOrgSlug } from "../lib/constants";
 import { Button } from "../components/ui/button";
 import {

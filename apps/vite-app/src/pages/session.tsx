@@ -10,7 +10,7 @@ export function SessionPage() {
 
   const session = useQuery(
     api.sessions.getSessionById,
-    sessionId ? { sessionId: sessionId as Id<"sessions"> } : "skip"
+    sessionId ? { sessionId: sessionId as Id<"sessions"> } : "skip",
   );
 
   useEffect(() => {
@@ -20,20 +20,12 @@ export function SessionPage() {
     }
   }, [session, navigate]);
 
-  if (!session) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-muted-foreground">Loading session...</div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col h-screen">
       <header className="border-b p-4">
         <h1 className="text-lg font-semibold">Session {sessionId}</h1>
         <p className="text-sm text-muted-foreground">
-          Created {new Date(session.createdAt).toLocaleString()}
+          Created {new Date(session?.createdAt || "").toLocaleString()}
         </p>
       </header>
       <main className="flex-1 p-4">

@@ -25,7 +25,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { RepositoryDropdown } from "./repository-dropdown";
-import { useRepositories } from "@/hooks/useRepositories";
+import { useRepositories } from "@/hooks/use-repositories";
 
 const formSchema = z.object({
   githubRepoId: z.number({

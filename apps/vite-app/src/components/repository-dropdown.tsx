@@ -18,7 +18,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useRepositories } from "@/hooks/useRepositories";
+import { useRepositories } from "@/hooks/use-repositories";
 
 interface RepositoryDropdownProps {
   value?: number;
@@ -37,7 +37,7 @@ export function RepositoryDropdown({
   const selectedRepo = repos?.find((repo) => repo.id === value);
 
   if (loading) {
-    return <Skeleton className="h-10 w-full" />;
+    return <Skeleton className="h-9 w-full" />;
   }
 
   return (
@@ -58,7 +58,10 @@ export function RepositoryDropdown({
           <ChevronsUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="p-0" style={{ width: "var(--radix-popover-trigger-width)" }}>
+      <PopoverContent
+        className="p-0"
+        style={{ width: "var(--radix-popover-trigger-width)" }}
+      >
         <Command>
           <CommandInput placeholder="Search repositories..." />
           <CommandList>
@@ -78,7 +81,7 @@ export function RepositoryDropdown({
                   <CheckIcon
                     className={cn(
                       "mr-2 h-4 w-4",
-                      value === repo.id ? "opacity-100" : "opacity-0"
+                      value === repo.id ? "opacity-100" : "opacity-0",
                     )}
                   />
                   <div className="flex flex-col">
