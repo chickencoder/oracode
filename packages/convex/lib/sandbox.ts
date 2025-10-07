@@ -5,7 +5,7 @@ import {
   getBundle,
   getWorkerEnv,
   getStartCommand,
-} from "./worker_bundle";
+} from "./workerBundle";
 import type { CommandResult, WorkerOptions, ServiceResult } from "./types";
 
 export async function runCommandInSandbox(

@@ -1,6 +1,6 @@
 "use node";
 
-import { WORKER_BUNDLE_CONTENT, WORKER_BUNDLE_SIZE } from "./worker_bundle_content";
+import { WORKER_BUNDLE_CONTENT, WORKER_BUNDLE_SIZE } from "./workerBundleContent";
 
 interface WorkerBundle {
   content: string;

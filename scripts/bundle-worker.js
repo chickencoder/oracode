@@ -15,7 +15,7 @@ const workerBundlePath = join(
   __dirname,
   "../packages/sandbox-worker/dist/index.js"
 );
-const outputPath = join(__dirname, "../packages/convex/lib/worker_bundle_content.ts");
+const outputPath = join(__dirname, "../packages/convex/lib/workerBundleContent.ts");
 
 try {
   console.log("Reading worker bundle from:", workerBundlePath);

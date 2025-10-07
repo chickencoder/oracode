@@ -12,7 +12,7 @@
     },
     "@repo/convex#bundle-worker": {
       "dependsOn": ["@repo/sandbox-worker#build"],
-      "outputs": ["lib/worker_bundle_content.ts"]
+      "outputs": ["lib/workerBundleContent.ts"]
     },
     "@repo/sandbox-worker#build": {
       "dependsOn": [],

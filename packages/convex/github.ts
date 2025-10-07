@@ -8,7 +8,7 @@ import {
 } from "./_generated/server";
 import { api } from "./_generated/api";
 import { z } from "zod";
-import { generateGitHubJWT, generateGitHubInstallationToken } from "./lib/github_auth";
+import { generateGitHubJWT, generateGitHubInstallationToken } from "./lib/githubAuth";
 
 const githubRepositorySchema = z.object({
   id: z.number(),

@@ -2,4 +2,4 @@
 _generated/
 
 # Worker bundle (auto-generated)
-lib/worker_bundle_content.ts
+lib/workerBundleContent.ts

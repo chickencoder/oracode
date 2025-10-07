@@ -9,9 +9,9 @@ import ms from "ms";
 import {
   generateGitHubInstallationToken,
   getRepositoryCloneUrl,
-} from "./lib/github_auth";
+} from "./lib/githubAuth";
 import { injectWorkerIntoSandbox } from "./lib/sandbox";
-import { generateClerkTokenForConvex } from "./lib/clerk_auth";
+import { generateClerkTokenForConvex } from "./lib/clerkAuth";
 
 // Action to start a sandbox for a session
 export const startSandbox = action({
