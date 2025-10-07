@@ -12,12 +12,35 @@ export default defineSchema({
     parts: v.array(v.any()),
     metadata: v.optional(v.any()),
     sessionId: v.id("sessions"),
-  }).index("by_session", ["sessionId"]),
+    userId: v.string(),
+    orgId: v.string(),
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_org_and_session", ["orgId", "sessionId"]),
   sessions: defineTable({
     projectId: v.id("projects"),
     agentSessionId: v.optional(v.string()),
     createdAt: v.number(),
   }).index("by_project", ["projectId"]),
+
+  // Vercel Sandbox management
+  sandboxes: defineTable({
+    sessionId: v.id("sessions"), // 1:1 relationship with sessions
+    sandboxId: v.string(), // Vercel Sandbox ID
+    status: v.union(
+      v.literal("creating"), // Being provisioned
+      v.literal("ready"), // Running and available
+      v.literal("timeout"), // Timed out, needs recreation
+      v.literal("error"), // Failed to create
+    ),
+    domain: v.string(), // Public domain for web preview
+    createdAt: v.number(), // When sandbox was created
+    timeoutAt: v.number(), // Expected timeout timestamp (createdAt + duration)
+    timeoutDuration: v.number(), // Timeout in ms (e.g., 3600000 for 1h)
+    error: v.optional(v.string()), // Error message if failed
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_sandbox_id", ["sandboxId"]),
 
   // GitHub App installation tracking
   githubInstallations: defineTable({

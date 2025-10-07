@@ -6,9 +6,9 @@ import { BrowserRouter, Routes, Route } from "react-router";
 import { useAuth } from "@clerk/react-router";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexReactClient } from "convex/react";
-import { NuqsAdapter } from "nuqs/adapters/react-router";
+import { NuqsAdapter } from "nuqs/adapters/react-router/v7";
 import { ThemeProvider } from "./components/theme-provider";
-import { ClerkThemeWrapper } from "./components/clerk-theme-wrapper";
+import { ClerkThemeProvider } from "./components/clerk-theme-provider.tsx";
 import { SignInPage } from "./pages/sign-in.tsx";
 import { OnboardingPage } from "./pages/onboarding.tsx";
 import { NewAccountPage } from "./pages/new-account.tsx";
@@ -32,15 +32,12 @@ createRoot(document.getElementById("root")!).render(
     <BrowserRouter>
       <NuqsAdapter>
         <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
-          <ClerkThemeWrapper publishableKey={PUBLISHABLE_KEY}>
+          <ClerkThemeProvider publishableKey={PUBLISHABLE_KEY}>
             <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
               <Routes>
                 <Route path="/" element={<OnboardingPage />} />
                 <Route path="/sign-in/*" element={<SignInPage />} />
-                <Route
-                  path="/new-account"
-                  element={<NewAccountPage />}
-                />
+                <Route path="/new-account" element={<NewAccountPage />} />
                 <Route path="/:orgSlug" element={<DashboardLayout />}>
                   <Route index element={<ProjectsPage />} />
                   <Route path="settings" element={<SettingsPage />} />
@@ -51,7 +48,7 @@ createRoot(document.getElementById("root")!).render(
                 />
               </Routes>
             </ConvexProviderWithClerk>
-          </ClerkThemeWrapper>
+          </ClerkThemeProvider>
         </ThemeProvider>
       </NuqsAdapter>
     </BrowserRouter>

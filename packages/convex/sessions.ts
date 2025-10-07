@@ -43,7 +43,25 @@ export const getSessionById = query({
     v.null()
   ),
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.sessionId);
+    // Get authenticated user
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.orgId || typeof identity.orgId !== "string") {
+      throw new Error("User must be authenticated with an organization");
+    }
+    const orgId = identity.orgId;
+
+    const session = await ctx.db.get(args.sessionId);
+    if (!session) {
+      return null;
+    }
+
+    // Verify session belongs to user's org
+    const project = await ctx.db.get(session.projectId);
+    if (!project || project.orgId !== orgId) {
+      throw new Error("Not authorized to access this session");
+    }
+
+    return session;
   },
 });
 
@@ -62,6 +80,19 @@ export const getSessionsByProject = query({
     })
   ),
   handler: async (ctx, args) => {
+    // Get authenticated user
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.orgId || typeof identity.orgId !== "string") {
+      throw new Error("User must be authenticated with an organization");
+    }
+    const orgId = identity.orgId;
+
+    // Verify project belongs to user's org
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.orgId !== orgId) {
+      throw new Error("Not authorized to access this project");
+    }
+
     const sessions = await ctx.db
       .query("sessions")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
@@ -89,12 +120,33 @@ export const getMessagesBySessionId = query({
       parts: v.array(v.any()),
       metadata: v.optional(v.any()),
       sessionId: v.id("sessions"),
+      userId: v.string(),
+      orgId: v.string(),
     })
   ),
   handler: async (ctx, args) => {
+    // Get authenticated user
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.orgId || typeof identity.orgId !== "string") {
+      throw new Error("User must be authenticated with an organization");
+    }
+    const orgId = identity.orgId;
+
+    // Verify session belongs to user's org
+    const session = await ctx.db.get(args.sessionId);
+    if (!session) {
+      throw new Error("Session not found");
+    }
+    const project = await ctx.db.get(session.projectId);
+    if (!project || project.orgId !== orgId) {
+      throw new Error("Not authorized to access this session");
+    }
+
     return await ctx.db
       .query("messages")
-      .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
+      .withIndex("by_org_and_session", (q) =>
+        q.eq("orgId", orgId).eq("sessionId", args.sessionId)
+      )
       .order("asc")
       .collect();
   },

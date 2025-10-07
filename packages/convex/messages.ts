@@ -18,13 +18,34 @@ export const getLastUserMessage = query({
       parts: v.array(v.any()),
       metadata: v.optional(v.any()),
       sessionId: v.id("sessions"),
+      userId: v.string(),
+      orgId: v.string(),
     }),
     v.null(),
   ),
   handler: async (ctx, args) => {
+    // Get authenticated user
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.orgId || typeof identity.orgId !== "string") {
+      throw new Error("User must be authenticated with an organization");
+    }
+    const orgId = identity.orgId;
+
+    // Verify session belongs to user's org
+    const session = await ctx.db.get(args.sessionId);
+    if (!session) {
+      throw new Error("Session not found");
+    }
+    const project = await ctx.db.get(session.projectId);
+    if (!project || project.orgId !== orgId) {
+      throw new Error("Not authorized to access this session");
+    }
+
     const lastUserMessage = await ctx.db
       .query("messages")
-      .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
+      .withIndex("by_org_and_session", (q) =>
+        q.eq("orgId", orgId).eq("sessionId", args.sessionId)
+      )
       .filter((q) => q.eq(q.field("role"), "user"))
       .order("desc")
       .first();
@@ -36,7 +57,9 @@ export const getLastUserMessage = query({
     // Check if there are any assistant messages after this user message in the same session
     const assistantMessageAfter = await ctx.db
       .query("messages")
-      .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
+      .withIndex("by_org_and_session", (q) =>
+        q.eq("orgId", orgId).eq("sessionId", args.sessionId)
+      )
       .filter((q) =>
         q.and(
           q.eq(q.field("role"), "assistant"),
@@ -58,12 +81,32 @@ export const insertAssistantMessage = mutation({
     sessionId: v.id("sessions"),
   },
   handler: async (ctx, args) => {
+    // Get authenticated user
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.orgId || !identity?.subject || typeof identity.orgId !== "string") {
+      throw new Error("User must be authenticated with an organization");
+    }
+    const orgId = identity.orgId;
+    const userId = identity.subject;
+
+    // Verify session belongs to user's org
+    const session = await ctx.db.get(args.sessionId);
+    if (!session) {
+      throw new Error("Session not found");
+    }
+    const project = await ctx.db.get(session.projectId);
+    if (!project || project.orgId !== orgId) {
+      throw new Error("Not authorized to access this session");
+    }
+
     return await ctx.db.insert("messages", {
       id: args.id,
       role: "assistant",
       parts: args.parts,
       metadata: args.metadata,
       sessionId: args.sessionId,
+      userId,
+      orgId,
     });
   },
 });
@@ -76,6 +119,24 @@ export const upsertAssistantMessage = mutation({
     sessionId: v.id("sessions"),
   },
   handler: async (ctx, args) => {
+    // Get authenticated user
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.orgId || !identity?.subject || typeof identity.orgId !== "string") {
+      throw new Error("User must be authenticated with an organization");
+    }
+    const orgId = identity.orgId;
+    const userId = identity.subject;
+
+    // Verify session belongs to user's org
+    const session = await ctx.db.get(args.sessionId);
+    if (!session) {
+      throw new Error("Session not found");
+    }
+    const project = await ctx.db.get(session.projectId);
+    if (!project || project.orgId !== orgId) {
+      throw new Error("Not authorized to access this session");
+    }
+
     // Try to find existing message
     const existingMessage = await ctx.db
       .query("messages")
@@ -97,6 +158,8 @@ export const upsertAssistantMessage = mutation({
         parts: args.parts,
         metadata: args.metadata,
         sessionId: args.sessionId,
+        userId,
+        orgId,
       });
     }
   },
@@ -110,12 +173,32 @@ export const insertUserMessage = mutation({
     sessionId: v.id("sessions"),
   },
   handler: async (ctx, args) => {
+    // Get authenticated user
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.orgId || !identity?.subject || typeof identity.orgId !== "string") {
+      throw new Error("User must be authenticated with an organization");
+    }
+    const orgId = identity.orgId;
+    const userId = identity.subject;
+
+    // Verify session belongs to user's org
+    const session = await ctx.db.get(args.sessionId);
+    if (!session) {
+      throw new Error("Session not found");
+    }
+    const project = await ctx.db.get(session.projectId);
+    if (!project || project.orgId !== orgId) {
+      throw new Error("Not authorized to access this session");
+    }
+
     return await ctx.db.insert("messages", {
       id: args.id,
       role: "user",
       parts: args.parts,
       metadata: args.metadata,
       sessionId: args.sessionId,
+      userId,
+      orgId,
     });
   },
 });
@@ -135,11 +218,21 @@ export const getAllMessages = query({
       parts: v.array(v.any()),
       metadata: v.optional(v.any()),
       sessionId: v.id("sessions"),
+      userId: v.string(),
+      orgId: v.string(),
     })
   ),
   handler: async (ctx) => {
+    // Get authenticated user
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.orgId || typeof identity.orgId !== "string") {
+      return [];
+    }
+    const orgId = identity.orgId;
+
     return await ctx.db
       .query("messages")
+      .filter((q) => q.eq(q.field("orgId"), orgId))
       .order("asc")
       .collect();
   },
@@ -149,10 +242,22 @@ export const getAllMessages = query({
 export const getCurrentSessionId = query({
   returns: v.union(v.id("sessions"), v.null()),
   handler: async (ctx) => {
+    // Get authenticated user
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.orgId || typeof identity.orgId !== "string") {
+      return null;
+    }
+    const orgId = identity.orgId;
+
     // Get the most recent assistant message, which should have the current sessionId
     const lastAssistantMessage = await ctx.db
       .query("messages")
-      .filter((q) => q.eq(q.field("role"), "assistant"))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("orgId"), orgId),
+          q.eq(q.field("role"), "assistant")
+        )
+      )
       .order("desc")
       .first();
 
@@ -177,12 +282,33 @@ export const getMessagesBySessionId = query({
       parts: v.array(v.any()),
       metadata: v.optional(v.any()),
       sessionId: v.id("sessions"),
+      userId: v.string(),
+      orgId: v.string(),
     })
   ),
   handler: async (ctx, args) => {
+    // Get authenticated user
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.orgId || typeof identity.orgId !== "string") {
+      throw new Error("User must be authenticated with an organization");
+    }
+    const orgId = identity.orgId;
+
+    // Verify session belongs to user's org
+    const session = await ctx.db.get(args.sessionId);
+    if (!session) {
+      throw new Error("Session not found");
+    }
+    const project = await ctx.db.get(session.projectId);
+    if (!project || project.orgId !== orgId) {
+      throw new Error("Not authorized to access this session");
+    }
+
     return await ctx.db
       .query("messages")
-      .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
+      .withIndex("by_org_and_session", (q) =>
+        q.eq("orgId", orgId).eq("sessionId", args.sessionId)
+      )
       .order("asc")
       .collect();
   },

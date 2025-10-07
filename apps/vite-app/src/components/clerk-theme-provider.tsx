@@ -3,15 +3,15 @@ import { dark } from "@clerk/themes";
 import { useTheme } from "./theme-provider";
 import { useEffect, useState, type ReactNode } from "react";
 
-interface ClerkThemeWrapperProps {
+interface ClerkThemeProviderProps {
   publishableKey: string;
   children: ReactNode;
 }
 
-export function ClerkThemeWrapper({
+export function ClerkThemeProvider({
   publishableKey,
   children,
-}: ClerkThemeWrapperProps) {
+}: ClerkThemeProviderProps) {
   const { theme } = useTheme();
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
 
