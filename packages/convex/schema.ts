@@ -12,11 +12,37 @@ export default defineSchema({
     parts: v.array(v.any()),
     metadata: v.optional(v.any()),
     sessionId: v.id("sessions"),
-  }).index("by_session", ["sessionId"]),
+    userId: v.string(),
+    orgId: v.string(),
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_org_and_session", ["orgId", "sessionId"]),
   sessions: defineTable({
     projectId: v.id("projects"),
     agentSessionId: v.optional(v.string()),
     createdAt: v.number(),
+    // Vercel Sandbox fields (1:1 relationship)
+    sandboxId: v.optional(v.string()), // Vercel Sandbox ID
+    sandboxStatus: v.optional(
+      v.union(
+        v.literal("creating"), // Being provisioned
+        v.literal("ready"), // Running and available
+        v.literal("error"), // Failed to create
+      ),
+    ),
+    sandboxDomain: v.optional(v.string()), // Public domain for web preview
+    sandboxCreatedAt: v.optional(v.number()), // When sandbox was created
+    sandboxTimeoutAt: v.optional(v.number()), // Expected timeout timestamp
+    sandboxTimeoutDuration: v.optional(v.number()), // Timeout in ms
+    sandboxError: v.optional(v.string()), // Error message if failed
+    sandboxLoadingStage: v.optional(
+      v.union(
+        v.literal("provisioning"), // Creating Vercel VM
+        v.literal("cloning"), // Cloning repository
+        v.literal("installing"), // Running install command
+        v.literal("starting"), // Starting dev server
+      ),
+    ),
   }).index("by_project", ["projectId"]),
 
   // GitHub App installation tracking

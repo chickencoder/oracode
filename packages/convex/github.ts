@@ -7,8 +7,8 @@ import {
   internalAction,
 } from "./_generated/server";
 import { api } from "./_generated/api";
-import { createAppAuth } from "@octokit/auth-app";
 import { z } from "zod";
+import { generateGitHubJWT, generateGitHubInstallationToken } from "./lib/githubAuth";
 
 const githubRepositorySchema = z.object({
   id: z.number(),
@@ -113,35 +113,7 @@ export const generateAppToken = internalAction({
   args: {},
   returns: v.string(),
   handler: async () => {
-    const appId = process.env.GITHUB_APP_ID;
-    const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
-
-    if (!appId || !privateKey) {
-      throw new Error("GitHub App credentials not configured");
-    }
-
-    // Format the private key correctly if it's all on one line
-    let formattedKey = privateKey;
-    if (!privateKey.includes("\n")) {
-      formattedKey = privateKey
-        .replace(
-          "-----BEGIN PRIVATE KEY----- ",
-          "-----BEGIN PRIVATE KEY-----\n",
-        )
-        .replace(" -----END PRIVATE KEY-----", "\n-----END PRIVATE KEY-----")
-        .replace(/(.{64})/g, "$1\n");
-      formattedKey = formattedKey.replace(/\n\n/g, "\n").trim();
-    }
-
-    // Create auth instance without installation ID to get JWT
-    const auth = createAppAuth({
-      appId: parseInt(appId),
-      privateKey: formattedKey,
-    });
-
-    // Get JWT token
-    const { token } = await auth({ type: "app" });
-    return token;
+    return await generateGitHubJWT();
   },
 });
 
@@ -167,6 +139,19 @@ export const linkOrganizationToInstallation = mutation({
 
     if (!installation) {
       throw new Error("Installation not found");
+    }
+
+    // Clean up any old installations for this orgId before linking the new one
+    const existingInstallations = await ctx.db
+      .query("githubInstallations")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .collect();
+
+    for (const existing of existingInstallations) {
+      // Delete old installations that are different from the one we're linking
+      if (existing._id !== installation._id) {
+        await ctx.db.delete(existing._id);
+      }
     }
 
     // Update with Clerk org ID
@@ -195,10 +180,13 @@ export const getInstallation = query({
     }
     const orgId = identity.orgId;
 
+    // Use .first() instead of .unique() to handle multiple installations
+    // (e.g., if app was uninstalled and reinstalled)
     const installation = await ctx.db
       .query("githubInstallations")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
-      .unique();
+      .order("desc")
+      .first();
 
     if (!installation) {
       return null;
@@ -249,36 +237,10 @@ export const listRepositories = action({
       return [];
     }
 
-    // Generate installation token inline
-    const appId = process.env.GITHUB_APP_ID;
-    const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
-
-    if (!appId || !privateKey) {
-      throw new Error("GitHub App credentials not configured");
-    }
-
-    // Format the private key correctly if it's all on one line
-    let formattedKey = privateKey;
-    if (!privateKey.includes("\n")) {
-      formattedKey = privateKey
-        .replace(
-          "-----BEGIN PRIVATE KEY----- ",
-          "-----BEGIN PRIVATE KEY-----\n",
-        )
-        .replace(" -----END PRIVATE KEY-----", "\n-----END PRIVATE KEY-----")
-        .replace(/(.{64})/g, "$1\n");
-      formattedKey = formattedKey.replace(/\n\n/g, "\n").trim();
-    }
-
-    // Create auth instance
-    const auth = createAppAuth({
-      appId: parseInt(appId),
-      privateKey: formattedKey,
-      installationId: installation.installationId,
-    });
-
-    // Get installation access token
-    const { token } = await auth({ type: "installation" });
+    // Generate installation token
+    const token = await generateGitHubInstallationToken(
+      installation.installationId,
+    );
 
     // Fetch all repositories with pagination
     let allRepos: Array<{

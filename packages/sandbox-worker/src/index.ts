@@ -24,6 +24,11 @@ if (!process.env.SESSION_ID) {
   process.exit(1);
 }
 
+if (!process.env.CLERK_TOKEN) {
+  logger.error("CLERK_TOKEN environment variable is required");
+  process.exit(1);
+}
+
 logger.info("Starting sandbox worker", {
   nodeVersion: process.version,
   platform: process.platform,
@@ -31,9 +36,14 @@ logger.info("Starting sandbox worker", {
   convexUrl: process.env.CONVEX_URL?.substring(0, 50) + "...",
   sandboxId: process.env.SANDBOX_ID,
   sessionId: process.env.SESSION_ID,
+  hasClerkToken: !!process.env.CLERK_TOKEN,
 });
 
 const client = new ConvexClient(process.env.CONVEX_URL!);
+
+// Authenticate the Convex client with Clerk JWT token
+client.setAuth(() => Promise.resolve(process.env.CLERK_TOKEN || ""));
+
 const sandboxId = process.env.SANDBOX_ID || `sandbox-${Date.now()}`;
 const sessionId = process.env.SESSION_ID! as Id<"sessions">;
 

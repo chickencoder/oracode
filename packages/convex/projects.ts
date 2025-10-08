@@ -36,6 +36,57 @@ export const createProject = mutation({
   },
 });
 
+// Get a single project by ID
+export const getProjectById = query({
+  args: {
+    projectId: v.id("projects"),
+  },
+  returns: v.union(
+    v.object({
+      _id: v.id("projects"),
+      githubRepoId: v.number(),
+      name: v.string(),
+      description: v.string(),
+      settings: v.object({
+        installCommand: v.string(),
+        devCommand: v.string(),
+        port: v.number(),
+      }),
+      createdAt: v.number(),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    // Get orgId from authenticated user
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.orgId || typeof identity.orgId !== "string") {
+      throw new Error("User must be authenticated with an organization");
+    }
+    const orgId = identity.orgId;
+
+    // Get the project
+    const project = await ctx.db.get(args.projectId);
+    if (!project) {
+      return null;
+    }
+
+    // Verify ownership
+    if (project.orgId !== orgId) {
+      throw new Error("Not authorized to access this project");
+    }
+
+    // Return without orgId
+    return {
+      _id: project._id,
+      githubRepoId: project.githubRepoId,
+      name: project.name,
+      description: project.description,
+      settings: project.settings,
+      createdAt: project.createdAt,
+    };
+  },
+});
+
 // Get all projects for the authenticated user's organization
 export const getProjects = query({
   args: {},
