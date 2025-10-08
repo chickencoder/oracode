@@ -8,9 +8,10 @@ import {
   WebPreviewNavigationButton,
 } from "@/components/ai-elements/web-preview";
 import {
+  ArrowLeft,
+  ArrowRight,
   ExternalLinkIcon,
   Loader,
-  Loader2,
   RefreshCcwIcon,
 } from "lucide-react";
 import { useRef, useState, useEffect } from "react";
@@ -48,29 +49,7 @@ export function PreviewPanel({
     setIsIframeLoading(false);
   };
 
-  // Show error state
-  if (hasError) {
-    return (
-      <div className="flex-1 min-h-0 flex items-center justify-center">
-        <Alert className="max-w-sm mx-auto flex flex-col gap-3">
-          <AlertTitle className="text-lg">Sandbox Error</AlertTitle>
-          <AlertDescription>
-            {error || "An error occurred while setting up the sandbox"}
-          </AlertDescription>
-          <Button
-            onClick={onRetry}
-            variant="destructive"
-            size="sm"
-            disabled={isCreating}
-          >
-            {isCreating ? "Retrying..." : "Try again"}
-          </Button>
-        </Alert>
-      </div>
-    );
-  }
-
-  const showSandboxLoading = !domain;
+  const showSandboxLoading = !domain && !hasError;
   const loadingMessage = loadingStage
     ? {
         provisioning: "Provisioning sandbox...",
@@ -80,6 +59,17 @@ export function PreviewPanel({
       }[loadingStage]
     : "Initializing preview...";
 
+  const handleRefresh = () => {
+    const iframe = iframeRef.current;
+    if (iframe) {
+      const currentSrc = iframe.src;
+      iframe.src = "";
+      setTimeout(() => {
+        iframe.src = currentSrc;
+      }, 0);
+    }
+  };
+
   return (
     <div className="flex-1 min-h-0 relative">
       <WebPreview
@@ -87,19 +77,13 @@ export function PreviewPanel({
         className="h-full rounded-lg overflow-hidden"
       >
         <WebPreviewNavigation>
-          <WebPreviewNavigationButton
-            tooltip="Refresh"
-            onClick={() => {
-              const iframe = iframeRef.current;
-              if (iframe) {
-                const currentSrc = iframe.src;
-                iframe.src = "";
-                setTimeout(() => {
-                  iframe.src = currentSrc;
-                }, 0);
-              }
-            }}
-          >
+          <WebPreviewNavigationButton tooltip="Back">
+            <ArrowLeft className="w-4 h-4" />
+          </WebPreviewNavigationButton>
+          <WebPreviewNavigationButton tooltip="Forward">
+            <ArrowRight className="w-4 h-4" />
+          </WebPreviewNavigationButton>
+          <WebPreviewNavigationButton tooltip="Refresh" onClick={handleRefresh}>
             <RefreshCcwIcon className="w-4 h-4" />
           </WebPreviewNavigationButton>
           <WebPreviewUrl value={domain} />
@@ -112,11 +96,24 @@ export function PreviewPanel({
         </WebPreviewNavigation>
         <div className="relative flex-1 flex flex-col">
           {showSandboxLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-10">
+            <div className="absolute inset-0 flex items-center justify-center bg-background z-10">
               <div className="text-center flex flex-col items-center space-y-3">
                 <Loader className="size-4 animate-spin" />
                 <div className="text-muted-foreground">{loadingMessage}</div>
               </div>
+            </div>
+          )}
+          {hasError && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background z-10">
+              <Alert className="max-w-sm mx-auto flex items-center text-center flex-col bg-transparent p-4 py-8 border-dashed">
+                <AlertTitle className="text-lg mb-2">Sandbox Error</AlertTitle>
+                <AlertDescription className="mb-4">
+                  {error || "An error occurred while setting up the sandbox"}
+                </AlertDescription>
+                <Button onClick={onRetry} size="sm" disabled={isCreating}>
+                  {isCreating ? "Retrying..." : "Try again"}
+                </Button>
+              </Alert>
             </div>
           )}
           <WebPreviewBody

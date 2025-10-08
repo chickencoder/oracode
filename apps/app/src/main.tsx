@@ -35,7 +35,7 @@ createRoot(document.getElementById("root")!).render(
         <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
           <ClerkThemeProvider publishableKey={PUBLISHABLE_KEY}>
             <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-              <Toaster richColors position="top-right" />
+              <Toaster position="bottom-right" />
               <Routes>
                 <Route path="/" element={<OnboardingPage />} />
                 <Route path="/sign-in/*" element={<SignInPage />} />

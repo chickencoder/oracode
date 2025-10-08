@@ -20,6 +20,7 @@ import type * as lib_githubAuth from "../lib/githubAuth.js";
 import type * as lib_sandbox from "../lib/sandbox.js";
 import type * as lib_types from "../lib/types.js";
 import type * as lib_workerBundle from "../lib/workerBundle.js";
+import type * as lib_workerBundleContent from "../lib/workerBundleContent.js";
 import type * as messages from "../messages.js";
 import type * as projects from "../projects.js";
 import type * as sandboxActions from "../sandboxActions.js";
@@ -42,6 +43,7 @@ declare const fullApi: ApiFromModules<{
   "lib/sandbox": typeof lib_sandbox;
   "lib/types": typeof lib_types;
   "lib/workerBundle": typeof lib_workerBundle;
+  "lib/workerBundleContent": typeof lib_workerBundleContent;
   messages: typeof messages;
   projects: typeof projects;
   sandboxActions: typeof sandboxActions;

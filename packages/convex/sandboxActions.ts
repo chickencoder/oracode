@@ -79,7 +79,25 @@ export const startSandbox = action({
         );
       }
 
-      // Step 4: Get project and GitHub installation details
+      // Step 4: Initialize sandbox in session with "creating" status FIRST
+      // This ensures errors are properly recorded even if they happen during setup
+      const timeoutDuration = ms("1h"); // 1 hour in ms
+      console.log("Initializing sandbox with timeout:", timeoutDuration);
+
+      await ctx.runMutation(api.sessions.initSessionSandbox, {
+        sessionId: args.sessionId,
+        timeoutDuration,
+      });
+
+      console.log("Session sandbox initialized");
+
+      // Step 5: Update stage to "provisioning"
+      await ctx.runMutation(api.sessions.updateSessionSandboxStage, {
+        sessionId: args.sessionId,
+        stage: "provisioning",
+      });
+
+      // Step 6: Get project and GitHub installation details
       // Get project via a query since actions can't access ctx.db
       const project = await ctx.runQuery(api.projects.getProjectById, {
         projectId: session.projectId,
@@ -104,7 +122,7 @@ export const startSandbox = action({
 
       console.log("GitHub installation:", installation.installationId);
 
-      // Step 5: Generate GitHub token and get repo URL
+      // Step 7: Generate GitHub token and get repo URL
       const githubToken = await generateGitHubInstallationToken(
         installation.installationId,
       );
@@ -116,17 +134,6 @@ export const startSandbox = action({
       );
       console.log("Repository clone URL:", cloneUrl);
       console.log("Default branch:", defaultBranch);
-
-      // Step 6: Initialize sandbox in session with "creating" status
-      const timeoutDuration = ms("1h"); // 1 hour in ms
-      console.log("Initializing sandbox with timeout:", timeoutDuration);
-
-      await ctx.runMutation(api.sessions.initSessionSandbox, {
-        sessionId: args.sessionId,
-        timeoutDuration,
-      });
-
-      console.log("Session sandbox initialized");
 
       // Step 8: Create Vercel Sandbox
       console.log("Creating Vercel Sandbox...");
