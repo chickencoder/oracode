@@ -45,31 +45,31 @@ export const startSandbox = action({
       }
       const clerkToken = await generateClerkTokenForConvex(clerkUserId);
 
-      // Step 2: Check for existing sandbox
-      const existingSandbox = await ctx.runQuery(
-        api.sandboxes.getSandboxBySession,
-        {
-          sessionId: args.sessionId,
-        },
-      );
+      // Step 2: Check for existing sandbox in session
+      const session = await ctx.runQuery(api.sessions.getSessionById, {
+        sessionId: args.sessionId,
+      });
+      if (!session) {
+        throw new Error("Session not found");
+      }
 
-      console.log("Existing sandbox:", existingSandbox);
+      console.log("Session sandbox status:", session.sandboxStatus);
 
       // Step 3: Handle existing sandbox scenarios
-      if (existingSandbox) {
+      if (session.sandboxStatus) {
         // If already creating, return error to prevent duplicates
-        if (existingSandbox.status === "creating") {
+        if (session.sandboxStatus === "creating") {
           throw new Error(
             "A sandbox is already being created for this session. Please wait.",
           );
         }
 
         // If ready and not timed out, return existing
-        if (existingSandbox.status === "ready" && !existingSandbox.isTimedOut) {
+        if (session.sandboxStatus === "ready" && !session.isTimedOut) {
           console.log("Returning existing ready sandbox");
           return {
-            sandboxId: existingSandbox.sandboxId,
-            domain: existingSandbox.domain,
+            sandboxId: session.sandboxId!,
+            domain: session.sandboxDomain!,
             status: "ready",
           };
         }
@@ -79,14 +79,7 @@ export const startSandbox = action({
         );
       }
 
-      // Step 4: Get session, project, and GitHub installation details
-      const session = await ctx.runQuery(api.sessions.getSessionById, {
-        sessionId: args.sessionId,
-      });
-      if (!session) {
-        throw new Error("Session not found");
-      }
-
+      // Step 4: Get project and GitHub installation details
       // Get project via a query since actions can't access ctx.db
       const project = await ctx.runQuery(api.projects.getProjectById, {
         projectId: session.projectId,
@@ -124,25 +117,16 @@ export const startSandbox = action({
       console.log("Repository clone URL:", cloneUrl);
       console.log("Default branch:", defaultBranch);
 
-      // Step 6: Create sandbox record with "creating" status
+      // Step 6: Initialize sandbox in session with "creating" status
       const timeoutDuration = ms("1h"); // 1 hour in ms
-      console.log("Creating sandbox record with timeout:", timeoutDuration);
+      console.log("Initializing sandbox with timeout:", timeoutDuration);
 
-      const sandboxRecordId = await ctx.runMutation(
-        api.sandboxes.createSandbox,
-        {
-          sessionId: args.sessionId,
-          timeoutDuration,
-        },
-      );
-
-      console.log("Created sandbox record:", sandboxRecordId);
-
-      // Step 7: Update stage to "provisioning"
-      await ctx.runMutation(api.sandboxes.updateSandboxStage, {
-        id: sandboxRecordId,
-        stage: "provisioning",
+      await ctx.runMutation(api.sessions.initSessionSandbox, {
+        sessionId: args.sessionId,
+        timeoutDuration,
       });
+
+      console.log("Session sandbox initialized");
 
       // Step 8: Create Vercel Sandbox
       console.log("Creating Vercel Sandbox...");
@@ -164,27 +148,22 @@ export const startSandbox = action({
 
       console.log("Vercel Sandbox created:", sandbox.sandboxId);
 
-      // Step 9: Get domain immediately (port is exposed at creation time)
-      const domain = sandbox.domain(project.settings.port);
-      console.log("Sandbox domain:", domain);
-
-      // Step 10: Store sandboxId and domain
-      await ctx.runMutation(api.sandboxes.updateSandboxReady, {
-        id: sandboxRecordId,
+      // Step 9: Store sandboxId (but not domain yet - will set after dev server is ready)
+      await ctx.runMutation(api.sessions.updateSessionSandbox, {
+        sessionId: args.sessionId,
         sandboxId: sandbox.sandboxId,
-        domain,
       });
-      console.log("Stored sandbox ID and domain");
+      console.log("Stored sandbox ID");
 
       // Step 10: Update stage to "cloning" (git clone happens during Sandbox.create)
-      await ctx.runMutation(api.sandboxes.updateSandboxStage, {
-        id: sandboxRecordId,
+      await ctx.runMutation(api.sessions.updateSessionSandboxStage, {
+        sessionId: args.sessionId,
         stage: "cloning",
       });
 
       // Step 11: Update stage to "installing"
-      await ctx.runMutation(api.sandboxes.updateSandboxStage, {
-        id: sandboxRecordId,
+      await ctx.runMutation(api.sessions.updateSessionSandboxStage, {
+        sessionId: args.sessionId,
         stage: "installing",
       });
 
@@ -204,8 +183,8 @@ export const startSandbox = action({
       console.log("Install command completed successfully");
 
       // Step 13: Update stage to "starting"
-      await ctx.runMutation(api.sandboxes.updateSandboxStage, {
-        id: sandboxRecordId,
+      await ctx.runMutation(api.sessions.updateSessionSandboxStage, {
+        sessionId: args.sessionId,
         stage: "starting",
       });
 
@@ -237,7 +216,18 @@ export const startSandbox = action({
         throw new Error(`Dev server failed to start. Logs: ${logs}`);
       }
 
-      // Step 15: Inject sandbox worker
+      // Step 15: Get domain now that dev server is ready
+      const domain = sandbox.domain(project.settings.port);
+      console.log("Sandbox domain:", domain);
+
+      // Store domain in session
+      await ctx.runMutation(api.sessions.updateSessionSandboxDomain, {
+        sessionId: args.sessionId,
+        domain,
+      });
+      console.log("Stored sandbox domain");
+
+      // Step 16: Inject sandbox worker
       console.log("Injecting sandbox worker...");
       const convexUrl = process.env.CONVEX_URL;
 
@@ -269,11 +259,9 @@ export const startSandbox = action({
         }
       }
 
-      // Step 16: Clear loading stage (sandbox is ready)
-      await ctx.runMutation(api.sandboxes.updateSandboxReady, {
-        id: sandboxRecordId,
-        sandboxId: sandbox.sandboxId,
-        domain,
+      // Step 17: Clear loading stage (sandbox is ready)
+      await ctx.runMutation(api.sessions.clearSessionSandboxLoadingStage, {
+        sessionId: args.sessionId,
       });
 
       console.log("=== startSandbox action complete ===");
@@ -287,17 +275,14 @@ export const startSandbox = action({
       console.error("=== startSandbox action failed ===");
       console.error("Error:", error);
 
-      // Try to update sandbox record with error if it was created
+      // Try to update session sandbox with error if it was being created
       try {
-        const existingSandbox = await ctx.runQuery(
-          api.sandboxes.getSandboxBySession,
-          {
+        const session = await ctx.runQuery(api.sessions.getSessionById, {
+          sessionId: args.sessionId,
+        });
+        if (session && session.sandboxStatus === "creating") {
+          await ctx.runMutation(api.sessions.updateSessionSandboxError, {
             sessionId: args.sessionId,
-          },
-        );
-        if (existingSandbox && existingSandbox.status === "creating") {
-          await ctx.runMutation(api.sandboxes.updateSandboxError, {
-            id: existingSandbox._id,
             error:
               error instanceof Error ? error.message : "Unknown error occurred",
           });
@@ -335,32 +320,22 @@ export const retrySandbox = action({
         throw new Error("User must be authenticated with an organization");
       }
 
-      // Step 2: Get existing sandbox
-      const existingSandbox = await ctx.runQuery(
-        api.sandboxes.getSandboxBySession,
-        {
-          sessionId: args.sessionId,
-        },
-      );
-
-      if (!existingSandbox) {
-        throw new Error("No sandbox found for this session");
-      }
-
-      if (!existingSandbox.sandboxId) {
-        throw new Error("Sandbox ID not found - cannot reconnect");
-      }
-
-      console.log("Reconnecting to sandbox:", existingSandbox.sandboxId);
-
-      // Step 3: Get project settings
+      // Step 2: Get existing sandbox from session
       const session = await ctx.runQuery(api.sessions.getSessionById, {
         sessionId: args.sessionId,
       });
+
       if (!session) {
         throw new Error("Session not found");
       }
 
+      if (!session.sandboxId) {
+        throw new Error("No sandbox found for this session");
+      }
+
+      console.log("Reconnecting to sandbox:", session.sandboxId);
+
+      // Step 3: Get project settings
       const project = await ctx.runQuery(api.projects.getProjectById, {
         projectId: session.projectId,
       });
@@ -370,20 +345,23 @@ export const retrySandbox = action({
 
       // Step 4: Reconnect to existing Vercel Sandbox
       const sandbox = await Sandbox.get({
-        sandboxId: existingSandbox.sandboxId,
+        sandboxId: session.sandboxId,
+        teamId: process.env.VERCEL_TEAM_ID!,
+        projectId: process.env.VERCEL_PROJECT_ID!,
         token: process.env.VERCEL_TOKEN!,
       });
 
       console.log("Reconnected to sandbox");
 
       // Step 5: Update status to "creating" (retrying)
-      await ctx.runMutation(api.sandboxes.updateSandboxCreating, {
-        id: existingSandbox._id,
+      await ctx.runMutation(api.sessions.initSessionSandbox, {
+        sessionId: args.sessionId,
+        timeoutDuration: session.sandboxTimeoutDuration || ms("1h"),
       });
 
       // Step 6: Update stage to "installing"
-      await ctx.runMutation(api.sandboxes.updateSandboxStage, {
-        id: existingSandbox._id,
+      await ctx.runMutation(api.sessions.updateSessionSandboxStage, {
+        sessionId: args.sessionId,
         stage: "installing",
       });
 
@@ -402,8 +380,8 @@ export const retrySandbox = action({
       console.log("Install command completed successfully");
 
       // Step 8: Update stage to "starting"
-      await ctx.runMutation(api.sandboxes.updateSandboxStage, {
-        id: existingSandbox._id,
+      await ctx.runMutation(api.sessions.updateSessionSandboxStage, {
+        sessionId: args.sessionId,
         stage: "starting",
       });
 
@@ -435,35 +413,57 @@ export const retrySandbox = action({
         throw new Error(`Dev server failed to start. Logs: ${logs}`);
       }
 
-      // Step 10: Update status back to "ready" (clears loading stage)
-      await ctx.runMutation(api.sandboxes.updateSandboxReady, {
-        id: existingSandbox._id,
-        sandboxId: existingSandbox.sandboxId,
-        domain: existingSandbox.domain,
+      // Step 10: Get domain from sandbox (may not have been stored if initial creation failed)
+      // Note: sandbox.domain() might not be available on reconnected sandboxes
+      // Try to get it from the sandbox object or fall back to stored value
+      let domain: string | undefined;
+      try {
+        domain = sandbox.domain(project.settings.port);
+      } catch (e) {
+        console.log("sandbox.domain() failed, trying alternate methods:", e);
+        // Check if sandbox has a url property
+        if ('url' in sandbox && typeof sandbox.url === 'string') {
+          domain = sandbox.url;
+        }
+      }
+      console.log("Sandbox domain:", domain);
+
+      // If still no domain, use stored value or fail
+      if (!domain) {
+        if (session.sandboxDomain) {
+          domain = session.sandboxDomain;
+          console.log("Using stored domain:", domain);
+        } else {
+          throw new Error("Failed to get domain from sandbox and no stored domain available");
+        }
+      }
+
+      // Step 11: Update status back to "ready" (clears loading stage)
+      await ctx.runMutation(api.sessions.updateSessionSandboxReady, {
+        sessionId: args.sessionId,
+        sandboxId: session.sandboxId,
+        domain,
       });
 
       console.log("=== retrySandbox action complete ===");
 
       return {
-        sandboxId: existingSandbox.sandboxId,
-        domain: existingSandbox.domain,
+        sandboxId: session.sandboxId,
+        domain,
         status: "ready",
       };
     } catch (error) {
       console.error("=== retrySandbox action failed ===");
       console.error("Error:", error);
 
-      // Update sandbox record with error
+      // Update session sandbox with error
       try {
-        const existingSandbox = await ctx.runQuery(
-          api.sandboxes.getSandboxBySession,
-          {
+        const session = await ctx.runQuery(api.sessions.getSessionById, {
+          sessionId: args.sessionId,
+        });
+        if (session) {
+          await ctx.runMutation(api.sessions.updateSessionSandboxError, {
             sessionId: args.sessionId,
-          },
-        );
-        if (existingSandbox) {
-          await ctx.runMutation(api.sandboxes.updateSandboxError, {
-            id: existingSandbox._id,
             error:
               error instanceof Error ? error.message : "Unknown error occurred",
           });

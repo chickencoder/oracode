@@ -21,24 +21,21 @@ export default defineSchema({
     projectId: v.id("projects"),
     agentSessionId: v.optional(v.string()),
     createdAt: v.number(),
-  }).index("by_project", ["projectId"]),
-
-  // Vercel Sandbox management
-  sandboxes: defineTable({
-    sessionId: v.id("sessions"), // 1:1 relationship with sessions
-    sandboxId: v.string(), // Vercel Sandbox ID
-    status: v.union(
-      v.literal("creating"), // Being provisioned
-      v.literal("ready"), // Running and available
-      v.literal("timeout"), // Timed out, needs recreation
-      v.literal("error"), // Failed to create
+    // Vercel Sandbox fields (1:1 relationship)
+    sandboxId: v.optional(v.string()), // Vercel Sandbox ID
+    sandboxStatus: v.optional(
+      v.union(
+        v.literal("creating"), // Being provisioned
+        v.literal("ready"), // Running and available
+        v.literal("error"), // Failed to create
+      ),
     ),
-    domain: v.string(), // Public domain for web preview
-    createdAt: v.number(), // When sandbox was created
-    timeoutAt: v.number(), // Expected timeout timestamp (createdAt + duration)
-    timeoutDuration: v.number(), // Timeout in ms (e.g., 3600000 for 1h)
-    error: v.optional(v.string()), // Error message if failed
-    loadingStage: v.optional(
+    sandboxDomain: v.optional(v.string()), // Public domain for web preview
+    sandboxCreatedAt: v.optional(v.number()), // When sandbox was created
+    sandboxTimeoutAt: v.optional(v.number()), // Expected timeout timestamp
+    sandboxTimeoutDuration: v.optional(v.number()), // Timeout in ms
+    sandboxError: v.optional(v.string()), // Error message if failed
+    sandboxLoadingStage: v.optional(
       v.union(
         v.literal("provisioning"), // Creating Vercel VM
         v.literal("cloning"), // Cloning repository
@@ -46,9 +43,7 @@ export default defineSchema({
         v.literal("starting"), // Starting dev server
       ),
     ),
-  })
-    .index("by_session", ["sessionId"])
-    .index("by_sandbox_id", ["sandboxId"]),
+  }).index("by_project", ["projectId"]),
 
   // GitHub App installation tracking
   githubInstallations: defineTable({
