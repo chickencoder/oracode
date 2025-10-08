@@ -4,7 +4,7 @@ import { api } from "@repo/convex/_generated/api";
 import type { Id } from "@repo/convex/_generated/dataModel";
 import { useEffect } from "react";
 import { useAuth } from "@clerk/clerk-react";
-import { ConversationPanel } from "@/components/conversation-panel";
+import { ChatPanel } from "@/components/chat-panel";
 import { PreviewPanel } from "@/components/preview-panel";
 import { useSandbox } from "@/hooks/use-sandbox";
 
@@ -32,7 +32,7 @@ export function SessionPage() {
   return (
     <div className="h-dvh flex flex-col gap-2 p-2">
       <div className="flex gap-2 flex-1 min-h-0">
-        <ConversationPanel
+        <ChatPanel
           sessionId={sessionId as Id<"sessions">}
           isSandboxReady={isReady}
         />

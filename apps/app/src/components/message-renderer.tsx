@@ -13,32 +13,40 @@ import {
   TaskItemFile,
   TaskTrigger,
 } from "@/components/ai-elements/task";
+import { LoadingText } from "@/components/loading-text";
 import type { MessageData, UserInfo } from "@repo/convex/types";
+import type { JSX } from "react";
 
 interface MessageRendererProps {
   messages: MessageData[];
   currentUser: UserInfo | null;
 }
 
-const GENERIC_ACTIVE_PHRASES = [
-  "Cooking up some code...",
-  "Spinning up the hamster wheels...",
-  "Channeling my inner wizard...",
-  "Putting on my thinking cap...",
-  "Consulting the ancient scrolls...",
-  "Doing the thing...",
-  "Making the magic happen...",
-  "Summoning the bits and bytes...",
-  "Weaving the code tapestry...",
-  "Building digital dreams...",
-];
-
-const getRandomPhrase = (seed: string) => {
-  // Use a simple hash of the seed to get consistent random selection
-  const hash = seed
-    .split("")
-    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return GENERIC_ACTIVE_PHRASES[hash % GENERIC_ACTIVE_PHRASES.length];
+const getToolActiveVerb = (toolName: string): string => {
+  switch (toolName) {
+    case "Glob":
+      return "Searching files";
+    case "Read":
+      return "Reading files";
+    case "Edit":
+      return "Editing files";
+    case "Write":
+      return "Writing files";
+    case "Bash":
+      return "Running command";
+    case "Grep":
+      return "Searching code";
+    case "Task":
+      return "Running task";
+    case "WebFetch":
+      return "Fetching content";
+    case "WebSearch":
+      return "Searching web";
+    case "TodoWrite":
+      return "Updating tasks";
+    default:
+      return `Using ${toolName}`;
+  }
 };
 
 const getToolDescription = (part: {
@@ -137,16 +145,7 @@ export function MessageRenderer({
 }: MessageRendererProps) {
   return (
     <>
-      {messages.map((message) => {
-        const todoWrite = message.parts.find(
-          (part) => part.type === "tool_use" && part.name === "TodoWrite",
-        );
-
-        const todos = todoWrite?.input?.todos as
-          | { status: string; activeForm: string; content: string }[]
-          | undefined;
-        const inProgressTodo = todos?.find((t) => t.status === "in_progress");
-
+      {messages.map((message, messageIndex) => {
         // Determine avatar and name based on role and user ID
         const isCurrentUser =
           message.role === "user" &&
@@ -161,12 +160,24 @@ export function MessageRenderer({
             : "https://static.landing.so/avatars/male-1.png";
 
         const userName = isAssistant
-          ? "Claude Code"
+          ? "Claude"
           : isCurrentUser && currentUser.name
             ? currentUser.name
             : "User";
 
-        let hasRenderedTask = false;
+        const isEmptyAssistantMessage =
+          isAssistant && message.parts.length === 0;
+
+        // Check if this message has tool calls and is complete
+        const toolParts = message.parts.filter(
+          (p) => p.type === "tool_use" && p.name !== "TodoWrite",
+        );
+        const hasToolCalls = toolParts.length > 0;
+        const nextMessage = messages[messageIndex + 1];
+        const isComplete =
+          hasToolCalls &&
+          (message.metadata?.isComplete ||
+            (nextMessage && nextMessage.role === "user"));
 
         return (
           <div key={message._id}>
@@ -181,44 +192,84 @@ export function MessageRenderer({
                   <span className="font-medium">{userName}</span>
                 </div>
 
-                {message.parts.map((part, index) => {
-                  if (part.type === "text") {
-                    return <Response key={index}>{part.text}</Response>;
-                  } else if (
-                    part.type === "tool_use" &&
-                    part.name !== "TodoWrite" &&
-                    !hasRenderedTask
-                  ) {
-                    hasRenderedTask = true;
-                    const toolParts = message.parts.filter(
-                      (p) => p.type === "tool_use" && p.name !== "TodoWrite",
-                    );
+                {isEmptyAssistantMessage ? (
+                  <LoadingText>Thinking...</LoadingText>
+                ) : (
+                  (() => {
+                    const elements: JSX.Element[] = [];
+                    let i = 0;
 
-                    return (
-                      <Task key={index} className="my-2">
-                        <TaskTrigger
-                          title={
-                            inProgressTodo?.activeForm ||
-                            getRandomPhrase(message._id)
-                          }
-                        />
-                        <TaskContent>
-                          {toolParts.map((toolPart, toolIndex) => (
-                            <TaskItem key={toolIndex}>
-                              {getToolDescription(
-                                toolPart as {
-                                  name: string;
-                                  input?: Record<string, unknown>;
-                                },
-                              )}
-                            </TaskItem>
-                          ))}
-                        </TaskContent>
-                      </Task>
-                    );
-                  }
-                  return null;
-                })}
+                    while (i < message.parts.length) {
+                      const part = message.parts[i];
+
+                      if (part.type === "text") {
+                        elements.push(<Response key={i}>{part.text}</Response>);
+                        i++;
+                      } else if (
+                        part.type === "tool_use" &&
+                        part.name !== "TodoWrite"
+                      ) {
+                        // Collect adjacent tool calls
+                        const adjacentTools: typeof message.parts = [];
+                        let j = i;
+                        while (
+                          j < message.parts.length &&
+                          message.parts[j].type === "tool_use" &&
+                          message.parts[j].name !== "TodoWrite"
+                        ) {
+                          adjacentTools.push(message.parts[j]);
+                          j++;
+                        }
+
+                        // Calculate execution time and show summary
+                        let taskTitle: string;
+                        const taskCount = adjacentTools.length;
+
+                        if (isComplete && nextMessage) {
+                          const executionTimeMs =
+                            nextMessage._creationTime - message._creationTime;
+                          const executionTimeSec = Math.round(
+                            executionTimeMs / 1000,
+                          );
+                          taskTitle = `Executed ${taskCount} task${taskCount === 1 ? "" : "s"}`;
+                        } else {
+                          // Show present tense while in progress using first tool's verb
+                          const firstTool = adjacentTools[0] as
+                            | { name: string; input?: Record<string, unknown> }
+                            | undefined;
+                          taskTitle = firstTool
+                            ? getToolActiveVerb(firstTool.name)
+                            : "Working";
+                        }
+
+                        elements.push(
+                          <Task key={i} className="my-2">
+                            <TaskTrigger title={taskTitle} />
+                            <TaskContent>
+                              {adjacentTools.map((toolPart, toolIndex) => (
+                                <TaskItem key={toolIndex}>
+                                  {getToolDescription(
+                                    toolPart as {
+                                      name: string;
+                                      input?: Record<string, unknown>;
+                                    },
+                                  )}
+                                </TaskItem>
+                              ))}
+                            </TaskContent>
+                          </Task>,
+                        );
+
+                        i = j; // Skip past all the tools we just processed
+                      } else {
+                        // Skip TodoWrite or any other part types
+                        i++;
+                      }
+                    }
+
+                    return elements;
+                  })()
+                )}
               </MessageContent>
             </Message>
           </div>

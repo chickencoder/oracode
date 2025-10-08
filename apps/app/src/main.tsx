@@ -7,6 +7,7 @@ import { useAuth } from "@clerk/react-router";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexReactClient } from "convex/react";
 import { NuqsAdapter } from "nuqs/adapters/react-router/v7";
+import { Toaster } from "sonner";
 import { ThemeProvider } from "./components/theme-provider";
 import { ClerkThemeProvider } from "./components/clerk-theme-provider";
 import { SignInPage } from "./pages/sign-in";
@@ -34,6 +35,7 @@ createRoot(document.getElementById("root")!).render(
         <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
           <ClerkThemeProvider publishableKey={PUBLISHABLE_KEY}>
             <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+              <Toaster position="bottom-right" />
               <Routes>
                 <Route path="/" element={<OnboardingPage />} />
                 <Route path="/sign-in/*" element={<SignInPage />} />
