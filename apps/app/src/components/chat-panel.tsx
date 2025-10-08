@@ -30,7 +30,6 @@ import {
   PromptInputToolbar,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
-import { ArrowUpIcon } from "lucide-react";
 import { MODELS } from "@/lib/constants";
 import { useOptimisticMessages } from "@/hooks/use-optimistic-messages";
 import { useCurrentUser } from "@/hooks/use-current-user";
