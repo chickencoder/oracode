@@ -125,13 +125,19 @@ export const linkOrganizationToInstallation = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    // Get orgId - either from explicit parameter or from authenticated user
+    // Get authenticated user identity
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.subject) {
+      throw new Error("User must be authenticated");
+    }
+    const userId = identity.subject;
+
+    // Get orgId - either from explicit parameter or from authenticated user's session
     let orgId: string;
     if (args.clerkOrgId) {
       orgId = args.clerkOrgId;
     } else {
-      const identity = await ctx.auth.getUserIdentity();
-      if (!identity?.orgId || typeof identity.orgId !== "string") {
+      if (!identity.orgId || typeof identity.orgId !== "string") {
         throw new Error("User must be authenticated with an organization");
       }
       orgId = identity.orgId;
@@ -145,6 +151,16 @@ export const linkOrganizationToInstallation = mutation({
 
     if (!installation) {
       throw new Error("Installation not found");
+    }
+
+    // SECURITY: If linking to a different org than the active session,
+    // verify the user is the one who installed the GitHub app
+    if (args.clerkOrgId && args.clerkOrgId !== identity.orgId) {
+      if (installation.installedBy !== userId) {
+        throw new Error(
+          "Only the user who installed the GitHub app can link it to an organization"
+        );
+      }
     }
 
     // Clean up any old installations for this orgId before linking the new one
