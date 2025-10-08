@@ -121,15 +121,21 @@ export const generateAppToken = internalAction({
 export const linkOrganizationToInstallation = mutation({
   args: {
     githubOrgLogin: v.string(),
+    clerkOrgId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    // Get orgId from authenticated user
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity?.orgId || typeof identity.orgId !== "string") {
-      throw new Error("User must be authenticated with an organization");
+    // Get orgId - either from explicit parameter or from authenticated user
+    let orgId: string;
+    if (args.clerkOrgId) {
+      orgId = args.clerkOrgId;
+    } else {
+      const identity = await ctx.auth.getUserIdentity();
+      if (!identity?.orgId || typeof identity.orgId !== "string") {
+        throw new Error("User must be authenticated with an organization");
+      }
+      orgId = identity.orgId;
     }
-    const orgId = identity.orgId;
 
     // Find installation by GitHub org login
     const installation = await ctx.db

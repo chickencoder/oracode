@@ -1,10 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useOrganizationList, UserButton, useUser } from "@clerk/clerk-react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useMutation } from "convex/react";
 import { api } from "@repo/convex/_generated/api";
-import { useGitHubInstallation } from "../hooks/use-git-hub-installation";
-import { normalizeOrgSlug } from "../lib/constants";
+import { useGitHubInstallation } from "../hooks/use-github-installation";
+import { normalizeOrgSlug, getGitHubAvatarUrl } from "../lib/constants";
 import { Button } from "../components/ui/button";
 import {
   Card,
@@ -13,15 +13,19 @@ import {
   CardHeader,
   CardTitle,
 } from "../components/ui/card";
-import { Loader } from "lucide-react";
-import { useState } from "react";
+import { Loader, AlertCircle } from "lucide-react";
+import { toast } from "sonner";
+
+type ProcessingStep = "idle" | "creating-org" | "linking-installation" | "complete";
 
 export function NewAccountPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { user, isLoaded: userLoaded } = useUser();
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasAttemptedCreate, setHasAttemptedCreate] = useState(false);
+  const [isInstalling, setIsInstalling] = useState(false);
+  const [processingStep, setProcessingStep] = useState<ProcessingStep>("idle");
+  const [error, setError] = useState<string | null>(null);
 
   // Check if we're linking to an existing org
   const existingOrgId = searchParams.get("orgId");
@@ -32,7 +36,6 @@ export function NewAccountPage() {
     createOrganization,
     setActive,
   } = useOrganizationList({ userMemberships: true });
-  const { isLoaded: userLoaded, user } = useUser();
 
   const createInstallationState = useMutation(
     api.github.createInstallationState,
@@ -41,112 +44,129 @@ export function NewAccountPage() {
     api.github.linkOrganizationToInstallation,
   );
 
-  const { status, isLinking, isCreating, setStatus } =
-    useGitHubInstallation(existingOrgId);
+  const { installationStatus, githubOrg } = useGitHubInstallation();
 
+  // Handle GitHub App installation callback
   useEffect(() => {
-    // Handle org creation separately since it requires createOrganization from the component
-    const installationStatus = searchParams.get("installation");
-    const githubOrg = searchParams.get("githubOrg");
+    if (!orgLoaded || !userMemberships || processingStep !== "idle") return;
 
-    if (
-      installationStatus === "success" &&
-      githubOrg &&
-      status === "creating" &&
-      orgLoaded &&
-      userMemberships &&
-      !hasAttemptedCreate
-    ) {
-      const expectedSlug = normalizeOrgSlug(githubOrg);
+    // Handle error callback
+    if (installationStatus === "error") {
+      setError("GitHub App installation failed. Please try again.");
+      return;
+    }
 
-      // Double-check that org doesn't already exist (defensive programming)
-      const existingOrg = userMemberships.data?.find(
-        (m) =>
-          m.organization.slug === expectedSlug ||
-          m.organization.name === githubOrg,
-      );
-
-      if (existingOrg) {
-        // Org already exists, just link it
-        setHasAttemptedCreate(true);
-
-        // Set as active organization before linking
-        setActive?.({ organization: existingOrg.organization.id })
-          .then(() => linkOrganizationToInstallation({
-            githubOrgLogin: githubOrg,
-          }))
-          .then(() => {
-            navigate(`/${existingOrg.organization.slug}`, { replace: true });
-          })
-          .catch((error) => {
-            console.error("Failed to link installation:", error);
-            setStatus("idle");
-            setHasAttemptedCreate(false);
-          });
-        return;
-      }
-
-      // Mark that we're attempting creation to prevent duplicate attempts
-      setHasAttemptedCreate(true);
-
-      createOrganization?.({
-        name: githubOrg,
-        slug: expectedSlug,
-      })
-        .then(async (org) => {
-          // Set the newly created org as active before linking
-          await setActive?.({ organization: org.id });
-          await linkOrganizationToInstallation({
-            githubOrgLogin: githubOrg,
-          });
-          navigate(`/${org.slug}`, { replace: true });
-        })
-        .catch(async (error) => {
-          console.error("Failed to create organization:", error);
-
-          // If slug is taken, the org might have been created already
-          // Try to find it and link it
-          if (error.message?.includes("slug is taken")) {
-            const retryOrg = userMemberships.data?.find(
-              (m) =>
-                m.organization.slug === expectedSlug ||
-                m.organization.name === githubOrg,
-            );
-
-            if (retryOrg) {
-              try {
-                await setActive?.({ organization: retryOrg.organization.id });
-                await linkOrganizationToInstallation({
-                  githubOrgLogin: githubOrg,
-                });
-                navigate(`/${retryOrg.organization.slug}`, { replace: true });
-                return;
-              } catch (linkError) {
-                console.error("Failed to link existing org:", linkError);
-              }
-            }
-          }
-
-          setStatus("idle");
-          setHasAttemptedCreate(false);
-        });
+    // Handle success callback
+    if (installationStatus === "success" && githubOrg) {
+      handleInstallationCallback(githubOrg);
     }
   }, [
-    searchParams,
-    status,
+    installationStatus,
+    githubOrg,
     orgLoaded,
     userMemberships,
-    createOrganization,
-    setActive,
-    linkOrganizationToInstallation,
-    navigate,
-    setStatus,
-    hasAttemptedCreate,
+    processingStep,
   ]);
 
+  const handleInstallationCallback = async (githubOrgLogin: string) => {
+    try {
+      const expectedSlug = normalizeOrgSlug(githubOrgLogin);
+      const githubAvatar = getGitHubAvatarUrl(githubOrgLogin);
+
+      // Step 1: Find or create Clerk organization
+      let clerkOrg: { id: string; slug: string | null };
+
+      if (existingOrgId) {
+        // User wants to link to a specific existing org
+        const org = userMemberships?.data?.find(
+          (m) => m.organization.id === existingOrgId
+        );
+
+        if (!org) {
+          throw new Error("Organization not found");
+        }
+
+        clerkOrg = {
+          id: org.organization.id,
+          slug: org.organization.slug,
+        };
+      } else {
+        // Check if org already exists with matching slug/name
+        const existingOrg = userMemberships?.data?.find(
+          (m) =>
+            m.organization.slug === expectedSlug ||
+            m.organization.name === githubOrgLogin
+        );
+
+        if (existingOrg) {
+          // Org exists - update avatar if needed
+          if (!existingOrg.organization.hasImage) {
+            existingOrg.organization
+              .setLogo({ file: githubAvatar })
+              .catch((err) => {
+                console.warn("Failed to update org image:", err);
+              });
+          }
+
+          clerkOrg = {
+            id: existingOrg.organization.id,
+            slug: existingOrg.organization.slug,
+          };
+        } else {
+          // Create new organization
+          setProcessingStep("creating-org");
+
+          if (!createOrganization) {
+            throw new Error("Unable to create organization");
+          }
+
+          const newOrg = await createOrganization({
+            name: githubOrgLogin,
+            slug: expectedSlug,
+          });
+
+          clerkOrg = {
+            id: newOrg.id,
+            slug: newOrg.slug,
+          };
+        }
+      }
+
+      // Step 2: Set organization as active
+      if (setActive) {
+        await setActive({ organization: clerkOrg.id });
+      }
+
+      // Step 3: Link GitHub installation to Clerk org (with explicit orgId)
+      setProcessingStep("linking-installation");
+      await linkOrganizationToInstallation({
+        githubOrgLogin,
+        clerkOrgId: clerkOrg.id,
+      });
+
+      // Step 4: Navigate to org dashboard
+      setProcessingStep("complete");
+      const orgSlug = clerkOrg.slug || clerkOrg.id;
+      navigate(`/${orgSlug}`, { replace: true });
+    } catch (err) {
+      console.error("Installation callback error:", err);
+      const message =
+        err instanceof Error ? err.message : "Failed to complete setup";
+      setError(message);
+      toast.error(message);
+      setProcessingStep("idle");
+    }
+  };
+
   const handleInstallGitHubApp = async () => {
-    setIsLoading(true);
-    if (!user?.id) return;
+    setIsInstalling(true);
+    setError(null);
+
+    if (!user?.id) {
+      setError("User not authenticated");
+      setIsInstalling(false);
+      return;
+    }
 
     try {
       const { stateToken } = await createInstallationState({
@@ -161,11 +181,24 @@ export function NewAccountPage() {
 
       const installUrl = `https://github.com/apps/${githubAppSlug}/installations/new?state=${stateToken}`;
       window.location.href = installUrl;
-    } catch (error) {
-      console.error("Failed to start GitHub App installation:", error);
+    } catch (err) {
+      console.error("Failed to start GitHub App installation:", err);
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Failed to start installation";
+      setError(message);
+      toast.error(message);
+      setIsInstalling(false);
     }
   };
 
+  const handleRetry = () => {
+    setError(null);
+    setProcessingStep("idle");
+  };
+
+  // Loading state
   if (!orgLoaded || !userLoaded) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -177,7 +210,19 @@ export function NewAccountPage() {
     );
   }
 
-  if (isLinking) {
+  // Processing states
+  if (processingStep === "creating-org") {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+          <Loader className="size-4 animate-spin" />
+          <p className="text-sm">Creating organization...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (processingStep === "linking-installation") {
     return (
       <div className="flex justify-center items-center h-screen">
         <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
@@ -188,17 +233,18 @@ export function NewAccountPage() {
     );
   }
 
-  if (isCreating) {
+  if (processingStep === "complete") {
     return (
       <div className="flex justify-center items-center h-screen">
         <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
           <Loader className="size-4 animate-spin" />
-          <p className="text-sm">Setting up your account...</p>
+          <p className="text-sm">Redirecting...</p>
         </div>
       </div>
     );
   }
 
+  // Main UI
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
       <div className="absolute top-4 right-4">
@@ -216,9 +262,26 @@ export function NewAccountPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {error && (
+            <div className="flex items-start gap-2 p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+              <AlertCircle className="size-4 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p>{error}</p>
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={handleRetry}
+                  className="h-auto p-0 mt-1 text-destructive"
+                >
+                  Try again
+                </Button>
+              </div>
+            </div>
+          )}
           <Button
             onClick={handleInstallGitHubApp}
-            loading={isLoading}
+            loading={isInstalling}
+            disabled={processingStep !== "idle"}
             className="w-full"
             size="lg"
           >
