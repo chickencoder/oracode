@@ -7,7 +7,12 @@ import {
   WebPreviewBody,
   WebPreviewNavigationButton,
 } from "@/components/ai-elements/web-preview";
-import { ExternalLinkIcon, Loader, RefreshCcwIcon } from "lucide-react";
+import {
+  ExternalLinkIcon,
+  Loader,
+  Loader2,
+  RefreshCcwIcon,
+} from "lucide-react";
 import { useRef, useState, useEffect } from "react";
 import { Alert, AlertTitle, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
@@ -28,15 +33,20 @@ export function PreviewPanel({
   loadingStage,
   onRetry,
 }: PreviewPanelProps) {
-  const [url, setUrl] = useState(domain);
+  const [isIframeLoading, setIsIframeLoading] = useState(!!domain);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Update URL when domain prop changes
+  // Update loading state when domain changes
   useEffect(() => {
     if (domain) {
-      setUrl(domain);
+      setIsIframeLoading(true);
     }
   }, [domain]);
+
+  // Handle iframe load event
+  const handleIframeLoad = () => {
+    setIsIframeLoading(false);
+  };
 
   // Show error state
   if (hasError) {
@@ -60,49 +70,62 @@ export function PreviewPanel({
     );
   }
 
-  // Show loading state when domain is not available (either creating or waiting)
-  if (!domain && !hasError) {
-    const loadingMessage = loadingStage
-      ? {
-          provisioning: "Provisioning sandbox...",
-          cloning: "Cloning repository...",
-          installing: "Installing dependencies...",
-          starting: "Starting dev server...",
-        }[loadingStage]
-      : "Initializing preview...";
-
-    return (
-      <div className="flex-1 min-h-0 flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <Loader className="size-4 animate-spin" />
-          <div className="text-muted-foreground">{loadingMessage}</div>
-        </div>
-      </div>
-    );
-  }
+  const showSandboxLoading = !domain;
+  const loadingMessage = loadingStage
+    ? {
+        provisioning: "Provisioning sandbox...",
+        cloning: "Cloning repository...",
+        installing: "Installing dependencies...",
+        starting: "Starting dev server...",
+      }[loadingStage]
+    : "Initializing preview...";
 
   return (
-    <div className="flex-1 min-h-0">
+    <div className="flex-1 min-h-0 relative">
       <WebPreview
-        defaultUrl={url}
+        defaultUrl={domain}
         className="h-full rounded-lg overflow-hidden"
       >
         <WebPreviewNavigation>
           <WebPreviewNavigationButton
             tooltip="Refresh"
-            onClick={() => iframeRef.current?.contentWindow?.location.reload()}
+            onClick={() => {
+              const iframe = iframeRef.current;
+              if (iframe) {
+                const currentSrc = iframe.src;
+                iframe.src = "";
+                setTimeout(() => {
+                  iframe.src = currentSrc;
+                }, 0);
+              }
+            }}
           >
             <RefreshCcwIcon className="w-4 h-4" />
           </WebPreviewNavigationButton>
-          <WebPreviewUrl src={url} onChange={(e) => setUrl(e.target.value)} />
+          <WebPreviewUrl value={domain} />
           <WebPreviewNavigationButton
             tooltip="Open in new tab"
-            onClick={() => window.open(url, "_blank")}
+            onClick={() => window.open(domain, "_blank")}
           >
             <ExternalLinkIcon className="w-4 h-4" />
           </WebPreviewNavigationButton>
         </WebPreviewNavigation>
-        <WebPreviewBody src={url} className="bg-white flex-1" ref={iframeRef} />
+        <div className="relative flex-1 flex flex-col">
+          {showSandboxLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-10">
+              <div className="text-center flex flex-col items-center space-y-3">
+                <Loader className="size-4 animate-spin" />
+                <div className="text-muted-foreground">{loadingMessage}</div>
+              </div>
+            </div>
+          )}
+          <WebPreviewBody
+            src={domain}
+            className="bg-white flex-1"
+            ref={iframeRef}
+            onLoad={handleIframeLoad}
+          />
+        </div>
       </WebPreview>
     </div>
   );

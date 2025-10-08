@@ -16,3 +16,16 @@ export function getGitHubAvatarUrl(usernameOrOrg: string): string {
 export function normalizeOrgSlug(githubOrg: string): string {
   return githubOrg.toLowerCase().replace(/[^a-z0-9-]/g, "-");
 }
+
+/**
+ * Chat-related constants
+ */
+
+export const MODELS = [
+  { id: "sonnet-4.5", name: "Sonnet 4.5" },
+  { id: "opus-4.1", name: "Opus 4.1" },
+] as const;
+
+export type ModelId = (typeof MODELS)[number]["id"];
+
+export const OPTIMISTIC_ASSISTANT_DELAY = 500;
