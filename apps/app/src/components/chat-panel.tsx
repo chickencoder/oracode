@@ -67,10 +67,12 @@ export function ChatPanel({ sessionId, isSandboxReady }: ChatPanelProps) {
     lastMessage?.role === "assistant" &&
     lastMessage.metadata?.isComplete === false;
 
-  // Determine status based on optimistic messages
-  const status = hasOptimisticUserMessage
-    ? "submitted"
-    : isGenerating || hasOptimisticAssistantMessage || isAssistantStreaming
+  // Determine status - show streaming for any message activity
+  const status =
+    hasOptimisticUserMessage ||
+    isGenerating ||
+    hasOptimisticAssistantMessage ||
+    isAssistantStreaming
       ? "streaming"
       : "ready";
 

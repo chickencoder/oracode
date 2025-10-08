@@ -6,137 +6,168 @@ import {
   MessageAvatar,
 } from "@/components/ai-elements/message";
 import { Response } from "@/components/ai-elements/response";
-import {
-  Task,
-  TaskContent,
-  TaskItem,
-  TaskItemFile,
-  TaskTrigger,
-} from "@/components/ai-elements/task";
+import { ToolParam } from "@/components/ai-elements/task";
 import { LoadingText } from "@/components/loading-text";
 import type { MessageData, UserInfo } from "@repo/convex/types";
 import type { JSX } from "react";
+import {
+  Search,
+  FileText,
+  Pencil,
+  FilePlus,
+  Terminal,
+  SearchCode,
+  Bot,
+  Globe,
+} from "lucide-react";
 
 interface MessageRendererProps {
   messages: MessageData[];
   currentUser: UserInfo | null;
 }
 
-const getToolActiveVerb = (toolName: string): string => {
+const getToolIcon = (toolName: string) => {
+  const iconProps = { className: "size-3.5 shrink-0" };
   switch (toolName) {
     case "Glob":
-      return "Searching files";
+      return <Search {...iconProps} />;
     case "Read":
-      return "Reading files";
+      return <FileText {...iconProps} />;
     case "Edit":
-      return "Editing files";
+      return <Pencil {...iconProps} />;
     case "Write":
-      return "Writing files";
+      return <FilePlus {...iconProps} />;
     case "Bash":
-      return "Running command";
+      return <Terminal {...iconProps} />;
     case "Grep":
-      return "Searching code";
+      return <SearchCode {...iconProps} />;
     case "Task":
-      return "Running task";
+      return <Bot {...iconProps} />;
     case "WebFetch":
-      return "Fetching content";
+      return <Globe {...iconProps} />;
     case "WebSearch":
-      return "Searching web";
-    case "TodoWrite":
-      return "Updating tasks";
+      return <Search {...iconProps} />;
     default:
-      return `Using ${toolName}`;
+      return null;
   }
 };
 
-const getToolDescription = (part: {
-  name: string;
-  input?: Record<string, unknown>;
-}) => {
+const renderToolCall = (
+  part: { name: string; input?: Record<string, unknown> },
+  isComplete: boolean,
+) => {
+  const icon = getToolIcon(part.name);
   const fileName =
     typeof part.input?.file_path === "string"
       ? part.input.file_path.split("/").pop()
       : undefined;
 
+  let label = "";
+  let param: string | undefined;
+
   switch (part.name) {
     case "Glob":
-      return (
-        <span className="flex items-center gap-2">
-          Searching for{" "}
-          <TaskItemFile>
-            {typeof part.input?.pattern === "string"
-              ? part.input.pattern
-              : "files"}
-          </TaskItemFile>
-        </span>
-      );
+      if (isComplete && typeof part.input?.pattern === "string") {
+        label = "Searched for";
+        param = part.input.pattern;
+      } else {
+        label = isComplete ? "Searched for files" : "Searching for files";
+      }
+      break;
     case "Read":
-      return (
-        <span className="flex items-center gap-2">
-          Reading <TaskItemFile>{fileName || "file"}</TaskItemFile>
-        </span>
-      );
+      if (isComplete && fileName) {
+        label = "Read";
+        param = fileName;
+      } else {
+        label = isComplete ? "Read file" : "Reading file";
+      }
+      break;
     case "Edit":
-      return (
-        <span className="flex items-center gap-2">
-          Editing <TaskItemFile>{fileName || "file"}</TaskItemFile>
-        </span>
-      );
+      if (isComplete && fileName) {
+        label = "Edited";
+        param = fileName;
+      } else {
+        label = isComplete ? "Edited file" : "Editing file";
+      }
+      break;
     case "Write":
-      return (
-        <span className="flex items-center gap-2">
-          Writing <TaskItemFile>{fileName || "file"}</TaskItemFile>
-        </span>
-      );
+      if (isComplete && fileName) {
+        label = "Wrote";
+        param = fileName;
+      } else {
+        label = isComplete ? "Wrote file" : "Writing file";
+      }
+      break;
     case "Bash":
-      const cmd =
-        typeof part.input?.command === "string" ? part.input.command : "bash";
-      return (
-        <span className="flex items-center gap-2">
-          Running{" "}
-          <TaskItemFile>
-            {cmd.length > 40 ? `${cmd.slice(0, 40)}...` : cmd}
-          </TaskItemFile>
-        </span>
-      );
+      if (typeof part.input?.command === "string") {
+        label = isComplete ? "Ran" : "Running";
+        param =
+          part.input.command.length > 40
+            ? `${part.input.command.slice(0, 40)}...`
+            : part.input.command;
+      } else {
+        label = isComplete ? "Ran command" : "Running command";
+      }
+      break;
     case "Grep":
-      return (
-        <span className="flex items-center gap-2">
-          Searching for{" "}
-          <TaskItemFile>
-            {typeof part.input?.pattern === "string"
-              ? part.input.pattern
-              : "pattern"}
-          </TaskItemFile>
-        </span>
-      );
+      if (isComplete && typeof part.input?.pattern === "string") {
+        label = "Searched for";
+        param = part.input.pattern;
+      } else {
+        label = isComplete ? "Searched code" : "Searching code";
+      }
+      break;
     case "Task":
-      return typeof part.input?.description === "string"
-        ? part.input.description
-        : "Running task";
+      label =
+        typeof part.input?.description === "string"
+          ? part.input.description
+          : isComplete
+            ? "Ran task"
+            : "Running task";
+      break;
     case "WebFetch":
-      return (
-        <span className="flex items-center gap-2">
-          Fetching{" "}
-          <TaskItemFile>
-            {typeof part.input?.url === "string"
-              ? part.input.url
-              : "web content"}
-          </TaskItemFile>
-        </span>
-      );
+      if (isComplete && typeof part.input?.url === "string") {
+        label = "Fetched";
+        param = part.input.url;
+      } else {
+        label = isComplete ? "Fetched content" : "Fetching content";
+      }
+      break;
     case "WebSearch":
-      return (
-        <span className="flex items-center gap-2">
-          Searching:{" "}
-          <TaskItemFile>
-            {typeof part.input?.query === "string" ? part.input.query : "query"}
-          </TaskItemFile>
-        </span>
-      );
+      if (isComplete && typeof part.input?.query === "string") {
+        label = "Searched";
+        param = part.input.query;
+      } else {
+        label = isComplete ? "Searched web" : "Searching web";
+      }
+      break;
     default:
-      return part.name;
+      label = part.name;
   }
+
+  if (isComplete) {
+    return (
+      <div className="text-muted-foreground text-sm">
+        <span className="inline-flex items-center gap-1.5">
+          {icon}
+          <span>{label}</span>
+          {param && <ToolParam>{param}</ToolParam>}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="inline-flex items-center gap-1.5 text-sm">
+      {icon}
+      <LoadingText>
+        <span className="inline-flex items-center gap-1.5">
+          <span>{label}</span>
+          {param && <ToolParam>{param}</ToolParam>}
+        </span>
+      </LoadingText>
+    </div>
+  );
 };
 
 export function MessageRenderer({
@@ -145,7 +176,7 @@ export function MessageRenderer({
 }: MessageRendererProps) {
   return (
     <>
-      {messages.map((message, messageIndex) => {
+      {messages.map((message) => {
         // Determine avatar and name based on role and user ID
         const isCurrentUser =
           message.role === "user" &&
@@ -168,16 +199,8 @@ export function MessageRenderer({
         const isEmptyAssistantMessage =
           isAssistant && message.parts.length === 0;
 
-        // Check if this message has tool calls and is complete
-        const toolParts = message.parts.filter(
-          (p) => p.type === "tool_use" && p.name !== "TodoWrite",
-        );
-        const hasToolCalls = toolParts.length > 0;
-        const nextMessage = messages[messageIndex + 1];
-        const isComplete =
-          hasToolCalls &&
-          (message.metadata?.isComplete ||
-            (nextMessage && nextMessage.role === "user"));
+        // Determine if message is complete
+        const isMessageComplete = message.metadata?.isComplete === true;
 
         return (
           <div key={message._id}>
@@ -195,80 +218,39 @@ export function MessageRenderer({
                 {isEmptyAssistantMessage ? (
                   <LoadingText>Thinking...</LoadingText>
                 ) : (
-                  (() => {
-                    const elements: JSX.Element[] = [];
-                    let i = 0;
-
-                    while (i < message.parts.length) {
-                      const part = message.parts[i];
-
+                  <div className="space-y-3">
+                    {message.parts.map((part, partIndex) => {
                       if (part.type === "text") {
-                        elements.push(<Response key={i}>{part.text}</Response>);
-                        i++;
+                        return <Response key={partIndex}>{part.text}</Response>;
                       } else if (
                         part.type === "tool_use" &&
                         part.name !== "TodoWrite"
                       ) {
-                        // Collect adjacent tool calls
-                        const adjacentTools: typeof message.parts = [];
-                        let j = i;
-                        while (
-                          j < message.parts.length &&
-                          message.parts[j].type === "tool_use" &&
-                          message.parts[j].name !== "TodoWrite"
-                        ) {
-                          adjacentTools.push(message.parts[j]);
-                          j++;
-                        }
+                        // Tool is loading if it's the last part and message is incomplete
+                        const isLastPart =
+                          partIndex === message.parts.length - 1;
+                        const isToolLoading = isLastPart && !isMessageComplete;
+                        // Add top margin if this is the first part (tool call starts the message)
+                        const isFirstPart = partIndex === 0;
 
-                        // Calculate execution time and show summary
-                        let taskTitle: string;
-                        const taskCount = adjacentTools.length;
-
-                        if (isComplete && nextMessage) {
-                          const executionTimeMs =
-                            nextMessage._creationTime - message._creationTime;
-                          const executionTimeSec = Math.round(
-                            executionTimeMs / 1000,
-                          );
-                          taskTitle = `Executed ${taskCount} task${taskCount === 1 ? "" : "s"}`;
-                        } else {
-                          // Show present tense while in progress using first tool's verb
-                          const firstTool = adjacentTools[0] as
-                            | { name: string; input?: Record<string, unknown> }
-                            | undefined;
-                          taskTitle = firstTool
-                            ? getToolActiveVerb(firstTool.name)
-                            : "Working";
-                        }
-
-                        elements.push(
-                          <Task key={i} className="my-2">
-                            <TaskTrigger title={taskTitle} />
-                            <TaskContent>
-                              {adjacentTools.map((toolPart, toolIndex) => (
-                                <TaskItem key={toolIndex}>
-                                  {getToolDescription(
-                                    toolPart as {
-                                      name: string;
-                                      input?: Record<string, unknown>;
-                                    },
-                                  )}
-                                </TaskItem>
-                              ))}
-                            </TaskContent>
-                          </Task>,
+                        return (
+                          <div
+                            key={partIndex}
+                            className={isFirstPart ? "mt-2" : ""}
+                          >
+                            {renderToolCall(
+                              part as {
+                                name: string;
+                                input?: Record<string, unknown>;
+                              },
+                              !isToolLoading,
+                            )}
+                          </div>
                         );
-
-                        i = j; // Skip past all the tools we just processed
-                      } else {
-                        // Skip TodoWrite or any other part types
-                        i++;
                       }
-                    }
-
-                    return elements;
-                  })()
+                      return null;
+                    })}
+                  </div>
                 )}
               </MessageContent>
             </Message>

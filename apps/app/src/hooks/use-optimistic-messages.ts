@@ -33,6 +33,7 @@ export function useOptimisticMessages({
   const [lastAssistantMessageId, setLastAssistantMessageId] = useState<
     string | null
   >(null);
+  const [waitingForResponse, setWaitingForResponse] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Combine real messages with optimistic messages
@@ -72,10 +73,12 @@ export function useOptimisticMessages({
       messages?.find((m) => m.id === optimisticUserMessage.id)
     ) {
       setOptimisticUserMessage(null);
+      // Keep waiting flag set until assistant responds
     }
   }, [messages, optimisticUserMessage]);
 
   // Clear optimistic assistant message when a NEW assistant message arrives
+  // Keep waiting state active until message completes
   useEffect(() => {
     if (
       lastAssistantMessage &&
@@ -84,7 +87,16 @@ export function useOptimisticMessages({
       setOptimisticAssistantMessage(null);
       setLastAssistantMessageId(lastAssistantMessage._id);
     }
-  }, [lastAssistantMessage, lastAssistantMessageId]);
+
+    // Clear waiting state only when the current message finishes streaming
+    if (
+      lastAssistantMessage &&
+      waitingForResponse &&
+      lastAssistantMessage.metadata?.isComplete !== false
+    ) {
+      setWaitingForResponse(false);
+    }
+  }, [lastAssistantMessage, lastAssistantMessageId, waitingForResponse]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -97,7 +109,8 @@ export function useOptimisticMessages({
 
   const isGenerating =
     lastAssistantMessage?.metadata?.isComplete === false ||
-    optimisticAssistantMessage !== null;
+    optimisticAssistantMessage !== null ||
+    waitingForResponse;
 
   const addOptimisticMessage = useCallback((text: string, id: string) => {
     const userMessage = createUserMessage(text, id);
@@ -105,6 +118,7 @@ export function useOptimisticMessages({
 
     // Show optimistic user message immediately
     setOptimisticUserMessage(userMessage);
+    setWaitingForResponse(true);
 
     // Show optimistic assistant message after a slight delay
     if (timeoutRef.current) {
@@ -118,6 +132,7 @@ export function useOptimisticMessages({
   const clearOptimisticMessages = useCallback(() => {
     setOptimisticUserMessage(null);
     setOptimisticAssistantMessage(null);
+    setWaitingForResponse(false);
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;

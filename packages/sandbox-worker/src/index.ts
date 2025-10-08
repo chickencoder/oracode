@@ -114,7 +114,7 @@ async function processStreamingSession() {
     }
 
     const queryOptions: Options = {
-      permissionMode: "acceptEdits",
+      permissionMode: "bypassPermissions",
       maxTurns: 50,
       model: "claude-sonnet-4-5-20250929",
       systemPrompt: { type: "preset", preset: "claude_code" },

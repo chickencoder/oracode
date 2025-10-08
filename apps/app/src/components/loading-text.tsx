@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import type { ReactNode } from "react";
 
 export function LoadingText({
   children,
@@ -7,7 +8,7 @@ export function LoadingText({
   delay = 0,
   interval = 0,
 }: {
-  children: string;
+  children: ReactNode;
   className?: string;
   duration?: number;
   delay?: number;

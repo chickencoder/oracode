@@ -27,6 +27,24 @@ export const TaskItemFile = ({
   </div>
 );
 
+export type ToolParamProps = ComponentProps<"span">;
+
+export const ToolParam = ({
+  children,
+  className,
+  ...props
+}: ToolParamProps) => (
+  <span
+    className={cn(
+      "inline-flex items-center gap-1 rounded bg-muted/50 px-1 py-0.5 font-mono text-xs",
+      className
+    )}
+    {...props}
+  >
+    {children}
+  </span>
+);
+
 export type TaskItemProps = ComponentProps<"div">;
 
 export const TaskItem = ({ children, className, ...props }: TaskItemProps) => (
