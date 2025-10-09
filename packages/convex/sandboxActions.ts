@@ -140,7 +140,7 @@ export const startSandbox = action({
       const daytona = new Daytona({
         apiKey: process.env.DAYTONA_API_KEY!,
         apiUrl: process.env.DAYTONA_API_URL || "https://app.daytona.io/api",
-        target: (process.env.DAYTONA_TARGET || "us") as "eu" | "us" | "asia",
+        target: (process.env.DAYTONA_TARGET || "eu") as "eu" | "us" | "asia",
       });
 
       // Step 9: Create Daytona Sandbox
@@ -314,26 +314,27 @@ export const startSandbox = action({
       console.log("Stored sandbox domain and token");
 
       // Step 18: Inject sandbox worker
-      console.log("Injecting sandbox worker...");
+      console.log("=== WORKER INJECTION START ===");
       const convexUrl = process.env.CONVEX_URL;
 
       if (!convexUrl) {
-        console.warn("⚠️ No CONVEX_URL found, skipping worker injection");
+        console.error("⚠️ WORKER INJECTION SKIPPED: No CONVEX_URL found");
       } else {
+        console.log("WORKER: CONVEX_URL present, injecting worker");
         const workerResult = await injectWorkerIntoSandbox(sandbox, {
-          sandboxId: sandboxId, // Fixed: use stored sandboxId not sandbox.id
+          sandboxId: sandboxId,
           convexUrl,
           sessionId: args.sessionId,
           clerkToken,
         });
 
         if (!workerResult.success) {
-          console.warn(
-            "⚠️ Failed to inject worker, continuing without it:",
+          console.error(
+            "❌ WORKER INJECTION FAILED:",
             workerResult.error,
           );
         } else {
-          console.log("Sandbox worker injected successfully");
+          console.log("✅ WORKER INJECTION SUCCESS");
 
           // Store worker session IDs for monitoring
           if (workerResult.sessionId && workerResult.commandId) {
@@ -342,9 +343,34 @@ export const startSandbox = action({
               workerSessionId: workerResult.sessionId,
               workerCommandId: workerResult.commandId,
             });
+            console.log("✅ WORKER SESSION IDs STORED");
+
+            // Wait a moment for worker to start, then check logs
+            await new Promise((resolve) => setTimeout(resolve, 3000));
+
+            // Check the actual log file
+            try {
+              const catResult = await sandbox.process.executeCommand(
+                "cat /tmp/worker.log"
+              );
+              console.log("=== WORKER LOG FILE (after 3s) ===");
+              console.log(catResult.result || "(empty)");
+              console.log("=== END WORKER LOG FILE ===");
+
+              // Check if process is still running
+              const psResult = await sandbox.process.executeCommand(
+                "ps aux | grep sandbox-worker.js | grep -v grep"
+              );
+              console.log("=== WORKER PROCESS STATUS ===");
+              console.log(psResult.result || "(not running)");
+              console.log("=== END PROCESS STATUS ===");
+            } catch (logError) {
+              console.warn("Could not fetch worker logs:", logError);
+            }
           }
         }
       }
+      console.log("=== WORKER INJECTION END ===")
 
       // Step 19: Clear loading stage (sandbox is ready)
       await ctx.runMutation(api.sessions.clearSessionSandboxLoadingStage, {
@@ -576,7 +602,9 @@ export const retrySandbox = action({
     ctx,
     args: { sessionId: Id<"sessions"> },
   ): Promise<{ sandboxId: string; domain: string; status: string }> => {
-    console.log("=== retrySandbox action called (delegating to restartSandbox) ===");
+    console.log(
+      "=== retrySandbox action called (delegating to restartSandbox) ===",
+    );
 
     // Simply delegate to restartSandbox - it handles all cases (stopped/archived/errored)
     return await ctx.runAction(api.sandboxActions.restartSandbox, {

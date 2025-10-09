@@ -42,7 +42,11 @@ logger.info("Starting sandbox worker", {
 const client = new ConvexClient(process.env.CONVEX_URL!);
 
 // Authenticate the Convex client with Clerk JWT token
-client.setAuth(() => Promise.resolve(process.env.CLERK_TOKEN || ""));
+logger.info("Setting Convex auth with Clerk token");
+client.setAuth(() => {
+  logger.info("Auth callback invoked, returning Clerk token");
+  return Promise.resolve(process.env.CLERK_TOKEN || "");
+});
 
 const sandboxId = process.env.SANDBOX_ID || `sandbox-${Date.now()}`;
 const sessionId = process.env.SESSION_ID! as Id<"sessions">;
