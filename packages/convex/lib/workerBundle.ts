@@ -15,10 +15,6 @@ interface WorkerEnvironment {
   NODE_ENV: string;
   ANTHROPIC_API_KEY: string;
   CLERK_TOKEN: string;
-  R2_ENDPOINT?: string;
-  R2_ACCESS_KEY_ID?: string;
-  R2_SECRET_ACCESS_KEY?: string;
-  R2_BUCKET_NAME?: string;
 }
 
 export function getBundle(): WorkerBundle {
@@ -34,14 +30,8 @@ export function getWorkerEnv(options: {
   convexUrl: string;
   sessionId: string;
   clerkToken: string;
-  r2Config?: {
-    endpoint: string;
-    accessKeyId: string;
-    secretAccessKey: string;
-    bucketName: string;
-  };
 }): WorkerEnvironment {
-  const env: WorkerEnvironment = {
+  return {
     CONVEX_URL: options.convexUrl,
     SANDBOX_ID: options.sandboxId,
     SESSION_ID: options.sessionId,
@@ -49,15 +39,6 @@ export function getWorkerEnv(options: {
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "",
     CLERK_TOKEN: options.clerkToken,
   };
-
-  if (options.r2Config) {
-    env.R2_ENDPOINT = options.r2Config.endpoint;
-    env.R2_ACCESS_KEY_ID = options.r2Config.accessKeyId;
-    env.R2_SECRET_ACCESS_KEY = options.r2Config.secretAccessKey;
-    env.R2_BUCKET_NAME = options.r2Config.bucketName;
-  }
-
-  return env;
 }
 
 export function getStartCommand(envVars: WorkerEnvironment): string {

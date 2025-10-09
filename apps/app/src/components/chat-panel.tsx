@@ -141,11 +141,7 @@ export function ChatPanel({ sessionId, isSandboxReady }: ChatPanelProps) {
               <PromptInputModelSelectTrigger>
                 <PromptInputModelSelectValue />
               </PromptInputModelSelectTrigger>
-              <PromptInputModelSelectContent
-                side="top"
-                align="start"
-                className="[--radius:0.95rem]"
-              >
+              <PromptInputModelSelectContent side="top" align="start">
                 {MODELS.map((modelOption) => (
                   <PromptInputModelSelectItem
                     key={modelOption.id}

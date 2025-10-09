@@ -4,7 +4,7 @@ import { v } from "convex/values";
 import { action } from "./_generated/server";
 import { api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { Sandbox } from "@vercel/sandbox";
+import { Daytona } from "@daytonaio/sdk";
 import ms from "ms";
 import {
   generateGitHubInstallationToken,
@@ -12,6 +12,7 @@ import {
 } from "./lib/githubAuth";
 import { injectWorkerIntoSandbox } from "./lib/sandbox";
 import { generateClerkTokenForConvex } from "./lib/clerkAuth";
+import { buildOracodeImage } from "./lib/daytonaImage";
 
 // Action to start a sandbox for a session
 export const startSandbox = action({
@@ -64,8 +65,11 @@ export const startSandbox = action({
           );
         }
 
-        // If ready and not timed out, return existing
-        if (session.sandboxStatus === "ready" && !session.isTimedOut) {
+        // If ready and started, return existing
+        if (
+          session.sandboxStatus === "ready" &&
+          session.sandboxState === "started"
+        ) {
           console.log("Returning existing ready sandbox");
           return {
             sandboxId: session.sandboxId!,
@@ -75,18 +79,15 @@ export const startSandbox = action({
         }
 
         console.log(
-          "Existing sandbox is timed out or errored, will create new one",
+          "Existing sandbox is stopped/archived or errored, will restart it",
         );
       }
 
       // Step 4: Initialize sandbox in session with "creating" status FIRST
-      // This ensures errors are properly recorded even if they happen during setup
-      const timeoutDuration = ms("1h"); // 1 hour in ms
-      console.log("Initializing sandbox with timeout:", timeoutDuration);
+      console.log("Initializing sandbox creation");
 
       await ctx.runMutation(api.sessions.initSessionSandbox, {
         sessionId: args.sessionId,
-        timeoutDuration,
       });
 
       console.log("Session sandbox initialized");
@@ -98,7 +99,6 @@ export const startSandbox = action({
       });
 
       // Step 6: Get project and GitHub installation details
-      // Get project via a query since actions can't access ctx.db
       const project = await ctx.runQuery(api.projects.getProjectById, {
         projectId: session.projectId,
       });
@@ -135,106 +135,185 @@ export const startSandbox = action({
       console.log("Repository clone URL:", cloneUrl);
       console.log("Default branch:", defaultBranch);
 
-      // Step 8: Create Vercel Sandbox
-      console.log("Creating Vercel Sandbox...");
-      const sandbox = await Sandbox.create({
-        teamId: process.env.VERCEL_TEAM_ID!,
-        projectId: process.env.VERCEL_PROJECT_ID!,
-        token: process.env.VERCEL_TOKEN!,
-        source: {
-          type: "git",
-          url: cloneUrl,
-          username: "x-access-token", // GitHub convention for token auth
-          password: githubToken,
-        },
-        resources: { vcpus: 4 },
-        timeout: timeoutDuration,
-        ports: [project.settings.port],
-        runtime: "node22",
+      // Step 8: Initialize Daytona SDK
+      console.log("Initializing Daytona client...");
+      const daytona = new Daytona({
+        apiKey: process.env.DAYTONA_API_KEY!,
+        apiUrl: process.env.DAYTONA_API_URL || "https://app.daytona.io/api",
+        target: (process.env.DAYTONA_TARGET || "us") as "eu" | "us" | "asia",
       });
 
-      console.log("Vercel Sandbox created:", sandbox.sandboxId);
+      // Step 9: Create Daytona Sandbox
+      console.log("Creating Daytona Sandbox...");
+      const baseImage = buildOracodeImage();
 
-      // Step 9: Store sandboxId (but not domain yet - will set after dev server is ready)
+      let sandbox;
+      try {
+        sandbox = await daytona.create(
+          {
+            image: baseImage,
+            envVars: {
+              NODE_ENV: "development",
+            },
+            public: true,
+          },
+          {
+            timeout: 0, // No timeout - wait indefinitely
+            onSnapshotCreateLogs: (chunk: string) =>
+              console.log("Build:", chunk),
+          },
+        );
+      } catch (error: any) {
+        console.error("Failed to create workspace:", error);
+        console.error("Error response:", error.response?.data);
+        throw error;
+      }
+
+      // Use the sandbox ID directly (no .instance in SDK 0.109.0)
+      const sandboxId = sandbox.id;
+      console.log("Daytona Sandbox created");
+      console.log("Sandbox ID:", sandboxId);
+      console.log("Initial state:", sandbox.state);
+
+      // Wait for sandbox to be ready using SDK method
+      console.log("Waiting for sandbox to be ready...");
+      await sandbox.waitUntilStarted(0); // 0 = wait indefinitely
+      console.log("Sandbox is ready!");
+
+      // Step 10: Configure auto-stop interval (10 minutes)
+      console.log("Configuring 10-minute auto-stop interval");
+      await sandbox.setAutostopInterval(10);
+      console.log("Auto-stop configured");
+
+      // Step 11: Store sandboxId and state
       await ctx.runMutation(api.sessions.updateSessionSandbox, {
         sessionId: args.sessionId,
-        sandboxId: sandbox.sandboxId,
+        sandboxId: sandboxId,
       });
-      console.log("Stored sandbox ID");
-
-      // Step 10: Update stage to "cloning" (git clone happens during Sandbox.create)
-      await ctx.runMutation(api.sessions.updateSessionSandboxStage, {
+      await ctx.runMutation(api.sessions.updateSessionSandboxState, {
         sessionId: args.sessionId,
-        stage: "cloning",
+        state: "started",
       });
+      console.log("Stored sandbox ID and state");
 
-      // Step 11: Update stage to "installing"
+      // Step 11: Get working directory
+      // (pnpm + Claude SDK are pre-installed in the declarative image)
+      const workDir = await sandbox.getWorkDir();
+      console.log("Working directory:", workDir);
+
+      // Step 12: Clone repository using Daytona's Git API
+      console.log("Cloning repository:", cloneUrl);
+      console.log("Into directory:", `${workDir}/project`);
+
+      // Use Daytona's built-in Git API with authentication
+      await sandbox.git.clone(
+        cloneUrl,
+        `${workDir}/project`,
+        defaultBranch,
+        undefined, // commitId
+        "x-access-token",
+        githubToken,
+      );
+
+      console.log("Repository cloned successfully");
+
+      // Step 13: Update stage to "installing"
       await ctx.runMutation(api.sessions.updateSessionSandboxStage, {
         sessionId: args.sessionId,
         stage: "installing",
       });
 
-      // Step 12: Run install command
+      // Step 13: Run install command
+      // pnpm is pre-installed in the declarative image
       console.log("Running install command:", project.settings.installCommand);
-      const installResult = await sandbox.runCommand("sh", [
-        "-c",
-        project.settings.installCommand,
-      ]);
+      const installResult = await sandbox.process.executeCommand(
+        `cd ${workDir}/project && ${project.settings.installCommand}`,
+      );
 
-      // Wait for command to complete
-      const installExitCode = await installResult.exitCode;
-      if (installExitCode !== 0) {
-        const stderr = await installResult.stderr();
-        throw new Error(`Install command failed: ${stderr}`);
+      console.log("Install result:", {
+        exitCode: installResult.exitCode,
+        result: installResult.result,
+      });
+
+      if (installResult.exitCode !== 0) {
+        throw new Error(
+          `Install command failed with exit code ${installResult.exitCode}:\n${installResult.result || "(no output)"}`,
+        );
       }
       console.log("Install command completed successfully");
 
-      // Step 13: Update stage to "starting"
+      // Step 16: Update stage to "starting"
       await ctx.runMutation(api.sessions.updateSessionSandboxStage, {
         sessionId: args.sessionId,
         stage: "starting",
       });
 
-      // Step 14: Start dev server in background with nohup and log to file
-      console.log("Starting dev server:", project.settings.devCommand);
-      const devCommandWithLogging = `nohup ${project.settings.devCommand} > /tmp/dev-server.log 2>&1 & echo $!`;
+      // Step 17: Start dev server in Daytona session
+      console.log(
+        "Starting dev server in session:",
+        project.settings.devCommand,
+      );
 
-      const startResult = await sandbox.runCommand("sh", ["-c", devCommandWithLogging]);
-      const pid = (await startResult.stdout()).trim();
-      console.log("Dev server started with PID:", pid);
+      // Create a persistent session for the dev server
+      const devSessionId = `dev-server-${Date.now()}`;
+      await sandbox.process.createSession(devSessionId);
 
-      // Wait a moment for the server to initialize
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      // Execute dev command asynchronously in the session
+      const devResult = await sandbox.process.executeSessionCommand(
+        devSessionId,
+        {
+          command: `cd ${workDir}/project && ${project.settings.devCommand}`,
+          runAsync: true, // Run in background
+        },
+      );
 
-      // Check if process is still running and get initial logs
-      const checkResult = await sandbox.runCommand("sh", [
-        "-c",
-        `ps -p ${pid} > /dev/null && echo "running" || echo "stopped"`,
-      ]);
-      const isRunning = (await checkResult.stdout()).trim() === "running";
-      console.log("Dev server status:", isRunning ? "running" : "stopped");
+      console.log("Dev server started in session:", devSessionId);
+      console.log("Command ID:", devResult.cmdId);
 
-      // Get initial log output to diagnose any startup issues
-      const logResult = await sandbox.runCommand("sh", ["-c", "head -100 /tmp/dev-server.log"]);
-      const logs = await logResult.stdout();
-      console.log("[DEV SERVER LOGS]:", logs);
-
-      if (!isRunning) {
-        throw new Error(`Dev server failed to start. Logs: ${logs}`);
+      // Store session ID in Convex for later monitoring
+      if (devResult.cmdId) {
+        await ctx.runMutation(api.sessions.updateSessionDevServerSession, {
+          sessionId: args.sessionId,
+          devSessionId: devSessionId,
+          devCommandId: devResult.cmdId,
+        });
       }
 
-      // Step 15: Get domain now that dev server is ready
-      const domain = sandbox.domain(project.settings.port);
-      console.log("Sandbox domain:", domain);
+      // Check logs to verify server started
+      if (devResult.cmdId) {
+        const logsResponse = await sandbox.process.getSessionCommandLogs(
+          devSessionId,
+          devResult.cmdId,
+        );
+        const logs = logsResponse.output || "";
+        console.log("Dev server logs:", logs.substring(0, 500));
 
-      // Store domain in session
+        // Basic check - if logs contain common error patterns, throw
+        if (
+          logs.toLowerCase().includes("error") &&
+          logs.toLowerCase().includes("failed")
+        ) {
+          throw new Error(`Dev server failed to start. Logs:\n${logs}`);
+        }
+      }
+
+      // Step 18: Get domain/preview URL using Daytona's preview link API
+      console.log("Getting preview link for port:", project.settings.port);
+      const previewLink = await sandbox.getPreviewLink(project.settings.port);
+      const domain = previewLink.url;
+      const previewToken = previewLink.token;
+      console.log("Sandbox domain:", domain);
+      console.log("Preview token:", previewToken ? "present" : "none");
+
+      // Store domain and token in session
       await ctx.runMutation(api.sessions.updateSessionSandboxDomain, {
         sessionId: args.sessionId,
         domain,
+        previewToken,
       });
-      console.log("Stored sandbox domain");
+      console.log("Stored sandbox domain and token");
 
-      // Step 16: Inject sandbox worker
+      // Step 18: Inject sandbox worker
       console.log("Injecting sandbox worker...");
       const convexUrl = process.env.CONVEX_URL;
 
@@ -242,18 +321,10 @@ export const startSandbox = action({
         console.warn("⚠️ No CONVEX_URL found, skipping worker injection");
       } else {
         const workerResult = await injectWorkerIntoSandbox(sandbox, {
-          sandboxId: sandbox.sandboxId,
+          sandboxId: sandboxId, // Fixed: use stored sandboxId not sandbox.id
           convexUrl,
           sessionId: args.sessionId,
           clerkToken,
-          r2Config: process.env.R2_ENDPOINT
-            ? {
-                endpoint: process.env.R2_ENDPOINT,
-                accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-                secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-                bucketName: process.env.R2_BUCKET_NAME!,
-              }
-            : undefined,
         });
 
         if (!workerResult.success) {
@@ -263,10 +334,19 @@ export const startSandbox = action({
           );
         } else {
           console.log("Sandbox worker injected successfully");
+
+          // Store worker session IDs for monitoring
+          if (workerResult.sessionId && workerResult.commandId) {
+            await ctx.runMutation(api.sessions.updateSessionWorkerSession, {
+              sessionId: args.sessionId,
+              workerSessionId: workerResult.sessionId,
+              workerCommandId: workerResult.commandId,
+            });
+          }
         }
       }
 
-      // Step 17: Clear loading stage (sandbox is ready)
+      // Step 19: Clear loading stage (sandbox is ready)
       await ctx.runMutation(api.sessions.clearSessionSandboxLoadingStage, {
         sessionId: args.sessionId,
       });
@@ -274,7 +354,7 @@ export const startSandbox = action({
       console.log("=== startSandbox action complete ===");
 
       return {
-        sandboxId: sandbox.sandboxId,
+        sandboxId: sandboxId, // Fixed: use stored sandboxId not sandbox.id
         domain,
         status: "ready",
       };
@@ -282,7 +362,7 @@ export const startSandbox = action({
       console.error("=== startSandbox action failed ===");
       console.error("Error:", error);
 
-      // Try to update session sandbox with error if it was being created
+      // Try to update session sandbox with error
       try {
         const session = await ctx.runQuery(api.sessions.getSessionById, {
           sessionId: args.sessionId,
@@ -303,8 +383,8 @@ export const startSandbox = action({
   },
 });
 
-// Action to retry a failed sandbox (reconnects to existing VM)
-export const retrySandbox = action({
+// Action to restart an existing sandbox (stopped/archived/errored)
+export const restartSandbox = action({
   args: {
     sessionId: v.id("sessions"),
   },
@@ -317,7 +397,7 @@ export const retrySandbox = action({
     ctx,
     args: { sessionId: Id<"sessions"> },
   ): Promise<{ sandboxId: string; domain: string; status: string }> => {
-    console.log("=== retrySandbox action called ===");
+    console.log("=== restartSandbox action called ===");
     console.log("Session ID:", args.sessionId);
 
     try {
@@ -340,7 +420,7 @@ export const retrySandbox = action({
         throw new Error("No sandbox found for this session");
       }
 
-      console.log("Reconnecting to sandbox:", session.sandboxId);
+      console.log("Restarting sandbox:", session.sandboxId);
 
       // Step 3: Get project settings
       const project = await ctx.runQuery(api.projects.getProjectById, {
@@ -350,109 +430,107 @@ export const retrySandbox = action({
         throw new Error("Project not found");
       }
 
-      // Step 4: Reconnect to existing Vercel Sandbox
-      const sandbox = await Sandbox.get({
-        sandboxId: session.sandboxId,
-        teamId: process.env.VERCEL_TEAM_ID!,
-        projectId: process.env.VERCEL_PROJECT_ID!,
-        token: process.env.VERCEL_TOKEN!,
+      // Step 4: Reconnect to existing Sandbox
+      const daytona = new Daytona({
+        apiKey: process.env.DAYTONA_API_KEY!,
+        apiUrl: process.env.DAYTONA_API_URL || "https://app.daytona.io/api",
+        target: (process.env.DAYTONA_TARGET || "us") as "eu" | "us" | "asia",
       });
 
+      const sandbox = await daytona.get(session.sandboxId);
       console.log("Reconnected to sandbox");
 
-      // Step 5: Update status to "creating" (retrying)
+      // Step 5: Update status to "creating" (restarting)
       await ctx.runMutation(api.sessions.initSessionSandbox, {
         sessionId: args.sessionId,
-        timeoutDuration: session.sandboxTimeoutDuration || ms("1h"),
       });
 
-      // Step 6: Update stage to "installing"
+      // Step 6: Start the sandbox
+      console.log("Starting sandbox...");
+      await sandbox.start();
+      await sandbox.waitUntilStarted(0);
+      console.log("Sandbox started successfully");
+
+      // Update state to started
+      await ctx.runMutation(api.sessions.updateSessionSandboxState, {
+        sessionId: args.sessionId,
+        state: "started",
+      });
+
+      // Step 7: Get working directory
+      const workDir = await sandbox.getWorkDir();
+
+      // Step 8: Update stage to "installing"
       await ctx.runMutation(api.sessions.updateSessionSandboxStage, {
         sessionId: args.sessionId,
         stage: "installing",
       });
 
-      // Step 7: Run install command
+      // Step 9: Run install command
       console.log("Running install command:", project.settings.installCommand);
-      const installResult = await sandbox.runCommand("sh", [
-        "-c",
-        project.settings.installCommand,
-      ]);
+      const installResult = await sandbox.process.executeCommand(
+        `cd ${workDir}/project && ${project.settings.installCommand}`,
+      );
 
-      const installExitCode = await installResult.exitCode;
-      if (installExitCode !== 0) {
-        const stderr = await installResult.stderr();
-        throw new Error(`Install command failed: ${stderr}`);
+      if (installResult.exitCode !== 0) {
+        throw new Error(`Install command failed: ${installResult.result}`);
       }
       console.log("Install command completed successfully");
 
-      // Step 8: Update stage to "starting"
+      // Step 10: Update stage to "starting"
       await ctx.runMutation(api.sessions.updateSessionSandboxStage, {
         sessionId: args.sessionId,
         stage: "starting",
       });
 
-      // Step 9: Start dev server in background with nohup and log to file
+      // Step 11: Start dev server in session (if not already running)
       console.log("Starting dev server:", project.settings.devCommand);
-      const devCommandWithLogging = `nohup ${project.settings.devCommand} > /tmp/dev-server.log 2>&1 & echo $!`;
 
-      const startResult = await sandbox.runCommand("sh", ["-c", devCommandWithLogging]);
-      const pid = (await startResult.stdout()).trim();
-      console.log("Dev server started with PID:", pid);
+      // Create or reuse dev session
+      const devSessionId = session.devSessionId || `dev-server-${Date.now()}`;
 
-      // Wait a moment for the server to initialize
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-
-      // Check if process is still running and get initial logs
-      const checkResult = await sandbox.runCommand("sh", [
-        "-c",
-        `ps -p ${pid} > /dev/null && echo "running" || echo "stopped"`,
-      ]);
-      const isRunning = (await checkResult.stdout()).trim() === "running";
-      console.log("Dev server status:", isRunning ? "running" : "stopped");
-
-      // Get initial log output to diagnose any startup issues
-      const logResult = await sandbox.runCommand("sh", ["-c", "head -100 /tmp/dev-server.log"]);
-      const logs = await logResult.stdout();
-      console.log("[DEV SERVER LOGS]:", logs);
-
-      if (!isRunning) {
-        throw new Error(`Dev server failed to start. Logs: ${logs}`);
+      // Only create session if it doesn't exist
+      if (!session.devSessionId) {
+        await sandbox.process.createSession(devSessionId);
       }
 
-      // Step 10: Get domain from sandbox (may not have been stored if initial creation failed)
-      // Note: sandbox.domain() might not be available on reconnected sandboxes
-      // Try to get it from the sandbox object or fall back to stored value
-      let domain: string | undefined;
-      try {
-        domain = sandbox.domain(project.settings.port);
-      } catch (e) {
-        console.log("sandbox.domain() failed, trying alternate methods:", e);
-        // Check if sandbox has a url property
-        if ('url' in sandbox && typeof sandbox.url === 'string') {
-          domain = sandbox.url;
-        }
+      const devResult = await sandbox.process.executeSessionCommand(
+        devSessionId,
+        {
+          command: `cd ${workDir}/project && ${project.settings.devCommand}`,
+          runAsync: true,
+        },
+      );
+
+      console.log("Dev server started in session:", devSessionId);
+      console.log("Command ID:", devResult.cmdId);
+
+      // Store session IDs
+      if (devResult.cmdId) {
+        await ctx.runMutation(api.sessions.updateSessionDevServerSession, {
+          sessionId: args.sessionId,
+          devSessionId: devSessionId,
+          devCommandId: devResult.cmdId,
+        });
       }
+
+      // Step 12: Get domain using preview link API
+      console.log("Getting preview link for port:", project.settings.port);
+      const previewLink = await sandbox.getPreviewLink(project.settings.port);
+      const domain = previewLink.url;
+      const previewToken = previewLink.token;
       console.log("Sandbox domain:", domain);
+      console.log("Preview token:", previewToken ? "present" : "none");
 
-      // If still no domain, use stored value or fail
-      if (!domain) {
-        if (session.sandboxDomain) {
-          domain = session.sandboxDomain;
-          console.log("Using stored domain:", domain);
-        } else {
-          throw new Error("Failed to get domain from sandbox and no stored domain available");
-        }
-      }
-
-      // Step 11: Update status back to "ready" (clears loading stage)
+      // Step 13: Update status back to "ready" and clear error
       await ctx.runMutation(api.sessions.updateSessionSandboxReady, {
         sessionId: args.sessionId,
         sandboxId: session.sandboxId,
         domain,
+        previewToken,
       });
 
-      console.log("=== retrySandbox action complete ===");
+      console.log("=== restartSandbox action complete ===");
 
       return {
         sandboxId: session.sandboxId,
@@ -460,7 +538,7 @@ export const retrySandbox = action({
         status: "ready",
       };
     } catch (error) {
-      console.error("=== retrySandbox action failed ===");
+      console.error("=== restartSandbox action failed ===");
       console.error("Error:", error);
 
       // Update session sandbox with error
@@ -481,5 +559,28 @@ export const retrySandbox = action({
 
       throw error;
     }
+  },
+});
+
+// Action to retry a failed sandbox (delegates to restartSandbox)
+export const retrySandbox = action({
+  args: {
+    sessionId: v.id("sessions"),
+  },
+  returns: v.object({
+    sandboxId: v.string(),
+    domain: v.string(),
+    status: v.string(),
+  }),
+  handler: async (
+    ctx,
+    args: { sessionId: Id<"sessions"> },
+  ): Promise<{ sandboxId: string; domain: string; status: string }> => {
+    console.log("=== retrySandbox action called (delegating to restartSandbox) ===");
+
+    // Simply delegate to restartSandbox - it handles all cases (stopped/archived/errored)
+    return await ctx.runAction(api.sandboxActions.restartSandbox, {
+      sessionId: args.sessionId,
+    });
   },
 });

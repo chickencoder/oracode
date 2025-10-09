@@ -9,44 +9,58 @@ export function useSandbox(sessionId: Id<"sessions"> | null | undefined) {
   const creationInProgress = useRef(false);
 
   // Query session directly (includes sandbox fields)
+  // Skip if no sessionId or no organization loaded yet
   const session = useQuery(
     api.sessions.getSessionById,
-    sessionId && organization ? { sessionId } : "skip",
+    sessionId && organization?.id ? { sessionId } : "skip",
   );
 
   const startSandboxAction = useAction(api.sandboxActions.startSandbox);
   const retrySandboxAction = useAction(api.sandboxActions.retrySandbox);
 
-  // Auto-create sandbox if needed (only when undefined/null or timed out, NOT on error)
+  // Auto-create or auto-restart sandbox
   useEffect(() => {
     if (!sessionId || !session || creationInProgress.current) return;
 
-    const needsSandbox =
-      !session.sandboxStatus ||
-      (session.sandboxStatus === "ready" && session.isTimedOut);
-
-    if (needsSandbox) {
+    // If no sandbox exists, create one
+    if (!session.sandboxId) {
       creationInProgress.current = true;
-      console.log("Auto-creating sandbox for session:", sessionId);
       startSandboxAction({ sessionId })
-        .then((result) => {
-          console.log("Sandbox created:", result);
+        .then(() => {
           creationInProgress.current = false;
         })
         .catch((error) => {
           console.error("Failed to create sandbox:", error);
           creationInProgress.current = false;
         });
+      return;
     }
-  }, [sessionId, session?.sandboxStatus, session?.isTimedOut, startSandboxAction]);
+
+    // If sandbox exists but not started, restart it
+    const shouldRestart =
+      session.sandboxId &&
+      (session.sandboxState !== "started" ||
+        session.sandboxStatus === "error") &&
+      session.sandboxStatus !== "creating";
+
+    if (shouldRestart) {
+      creationInProgress.current = true;
+      retrySandboxAction({ sessionId })
+        .then(() => {
+          creationInProgress.current = false;
+        })
+        .catch((error) => {
+          console.error("Failed to restart sandbox:", error);
+          creationInProgress.current = false;
+        });
+    }
+  }, [sessionId, session, startSandboxAction, retrySandboxAction]);
 
   const retrySandbox = () => {
     if (!sessionId || creationInProgress.current) return;
     creationInProgress.current = true;
-    console.log("Retrying sandbox for session:", sessionId);
     retrySandboxAction({ sessionId })
-      .then((result) => {
-        console.log("Sandbox retry succeeded:", result);
+      .then(() => {
         creationInProgress.current = false;
       })
       .catch((error) => {
@@ -55,19 +69,28 @@ export function useSandbox(sessionId: Id<"sessions"> | null | undefined) {
       });
   };
 
-  // Sandbox is only truly ready when status is "ready", has domain, and not timed out
+  // Sandbox is ready when status is "ready", state is "started", and has domain
   const isReady =
     session?.sandboxStatus === "ready" &&
-    !!session?.sandboxDomain &&
-    !session?.isTimedOut;
+    session?.sandboxState === "started" &&
+    !!session?.sandboxDomain;
+
+  // Build preview URL with authentication token
+  const previewUrl = session?.sandboxDomain
+    ? session.sandboxPreviewToken
+      ? `${session.sandboxDomain}?token=${session.sandboxPreviewToken}`
+      : session.sandboxDomain
+    : "";
 
   return {
     sandbox: session, // For backwards compatibility
     isCreating: session?.sandboxStatus === "creating",
     isReady,
+    isStopped: session?.sandboxState === "stopped",
+    isArchived: session?.sandboxState === "archived",
     hasError: session?.sandboxStatus === "error",
-    isTimedOut: session?.isTimedOut || false,
     domain: session?.sandboxDomain || "",
+    previewUrl, // Use this for iframe src
     error: session?.sandboxError,
     loadingStage: session?.sandboxLoadingStage,
     retrySandbox,

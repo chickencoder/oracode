@@ -21,8 +21,8 @@ export default defineSchema({
     projectId: v.id("projects"),
     agentSessionId: v.optional(v.string()),
     createdAt: v.number(),
-    // Vercel Sandbox fields (1:1 relationship)
-    sandboxId: v.optional(v.string()), // Vercel Sandbox ID
+    // Sandbox fields (1:1 relationship)
+    sandboxId: v.optional(v.string()), // Sandbox ID
     sandboxStatus: v.optional(
       v.union(
         v.literal("creating"), // Being provisioned
@@ -30,19 +30,28 @@ export default defineSchema({
         v.literal("error"), // Failed to create
       ),
     ),
+    sandboxState: v.optional(
+      v.union(
+        v.literal("started"), // Sandbox is running
+        v.literal("stopped"), // Sandbox is stopped (auto-stopped or manually)
+        v.literal("archived"), // Sandbox is archived (after 7 days stopped)
+      ),
+    ),
     sandboxDomain: v.optional(v.string()), // Public domain for web preview
-    sandboxCreatedAt: v.optional(v.number()), // When sandbox was created
-    sandboxTimeoutAt: v.optional(v.number()), // Expected timeout timestamp
-    sandboxTimeoutDuration: v.optional(v.number()), // Timeout in ms
+    sandboxPreviewToken: v.optional(v.string()), // Auth token for preview URL (private sandboxes)
     sandboxError: v.optional(v.string()), // Error message if failed
     sandboxLoadingStage: v.optional(
       v.union(
-        v.literal("provisioning"), // Creating Vercel VM
-        v.literal("cloning"), // Cloning repository
+        v.literal("provisioning"), // Creating sandbox
         v.literal("installing"), // Running install command
         v.literal("starting"), // Starting dev server
       ),
     ),
+    // Sandbox session tracking for long-running processes
+    devSessionId: v.optional(v.string()), // Session for dev server
+    devCommandId: v.optional(v.string()), // Command ID for dev server
+    workerSessionId: v.optional(v.string()), // Session for worker
+    workerCommandId: v.optional(v.string()), // Command ID for worker
   }).index("by_project", ["projectId"]),
 
   // GitHub App installation tracking
