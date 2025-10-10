@@ -3,7 +3,7 @@ import { Settings, Code, KeySquare } from "lucide-react";
 
 const settingsNav = [
   { name: "General", href: "", icon: Settings },
-  { name: "Development", href: "/development", icon: Code },
+  { name: "Sandbox", href: "/sandbox", icon: Code },
   { name: "Environment Variables", href: "/environment", icon: KeySquare },
 ];
 
@@ -20,7 +20,7 @@ export function ProjectSettingsLayout() {
 
   const getActivePage = () => {
     if (currentPath === basePath) return "General";
-    if (currentPath.endsWith("/development")) return "Development";
+    if (currentPath.endsWith("/sandbox")) return "Sandbox";
     if (currentPath.endsWith("/environment")) return "Environment Variables";
     return "General";
   };

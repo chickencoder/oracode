@@ -385,6 +385,7 @@ export const startSandbox = action({
       // Step 20: Inject sandbox worker
       console.log("Injecting sandbox worker...");
 
+      const convexUrl = process.env.CONVEX_URL;
       if (!convexUrl) {
         console.warn("⚠️ No CONVEX_URL found, skipping worker injection");
       } else {

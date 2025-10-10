@@ -5,10 +5,11 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@repo/convex/_generated/api";
 import type { Id } from "@repo/convex/_generated/dataModel";
 import { formatDistanceToNow } from "date-fns";
-import { Card, CardTitle, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { GitBranch, SearchIcon, MoreVertical, Trash2 } from "lucide-react";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import {
   InputGroup,
   InputGroupAddon,
@@ -37,7 +38,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { CreateBranchModal } from "@/components/create-branch-modal";
+import { CreateBranchDialog } from "@/components/create-branch-dialog";
 import { toast } from "sonner";
 
 export function ProjectBranchesPage() {
@@ -120,7 +121,7 @@ export function ProjectBranchesPage() {
       </div>
 
       {projectId && orgSlug && (
-        <CreateBranchModal
+        <CreateBranchDialog
           open={isModalOpen}
           onOpenChange={setIsModalOpen}
           projectId={projectId as Id<"projects">}
@@ -151,58 +152,91 @@ export function ProjectBranchesPage() {
       </AlertDialog>
 
       {branches === undefined ? (
-        <div className="space-y-3">
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-24 w-full" />
+        <div className="border rounded-lg bg-card">
+          <div className="divide-y">
+            <Skeleton className="h-12 w-full rounded-none" />
+            <Skeleton className="h-12 w-full rounded-none" />
+            <Skeleton className="h-12 w-full rounded-none" />
+          </div>
         </div>
       ) : filteredBranches && filteredBranches.length > 0 ? (
-        <div className="space-y-3">
-          {filteredBranches.map((branch) => (
-            <Card
-              key={branch._id}
-              className="cursor-pointer hover:bg-accent/50 transition-colors rounded-md shadow-xs relative"
-              onClick={() => handleBranchClick(branch._id)}
-            >
-              <CardHeader>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex flex-col gap-2">
-                    <CardTitle className="font-medium tracking-tight text-lg flex items-center gap-2">
-                      <GitBranch className="h-4 w-4" />
+        <div className="border rounded-lg bg-card overflow-hidden">
+          <Table>
+            <TableBody>
+              {filteredBranches.map((branch) => (
+                <TableRow
+                  key={branch._id}
+                  className="cursor-pointer"
+                  onClick={() => handleBranchClick(branch._id)}
+                >
+                  <TableCell className="font-medium pl-3">
+                    <div className="flex items-center gap-2">
+                      <GitBranch className="h-4 w-4 text-muted-foreground" />
                       {branch.branchName}
-                    </CardTitle>
-                    <span className="text-sm text-muted-foreground">
-                      {formatDistanceToNow(branch.createdAt, {
-                        addSuffix: true,
-                      })}
-                    </span>
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      asChild
-                      onClick={(e) => e.stopPropagation()}
-                      className="absolute top-4 right-4"
-                    >
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onClick={(e) =>
-                          handleDeleteClick(branch._id, branch.branchName, e)
-                        }
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {formatDistanceToNow(branch.createdAt, {
+                      addSuffix: true,
+                    })}
+                  </TableCell>
+                  <TableCell>
+                    {branch.sandboxStatus === "ready" ? (
+                      <Badge
+                        variant="outline"
+                        className="border-green-600/20 bg-green-600/10 text-green-600 dark:border-green-400/20 dark:bg-green-400/10 dark:text-green-400"
                       >
-                        <Trash2 className="h-4 w-4 mr-2 text-destructive" />
-                        Delete branch
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </CardHeader>
-            </Card>
-          ))}
+                        Ready
+                      </Badge>
+                    ) : branch.sandboxStatus === "creating" ? (
+                      <Badge
+                        variant="outline"
+                        className="border-yellow-600/20 bg-yellow-600/10 text-yellow-600 dark:border-yellow-400/20 dark:bg-yellow-400/10 dark:text-yellow-400"
+                      >
+                        Creating
+                      </Badge>
+                    ) : branch.sandboxStatus === "error" ? (
+                      <Badge
+                        variant="outline"
+                        className="border-red-600/20 bg-red-600/10 text-red-600 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-400"
+                      >
+                        Error
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className="text-muted-foreground"
+                      >
+                        Not started
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="w-[50px]">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        asChild
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuItem
+                          onClick={(e) =>
+                            handleDeleteClick(branch._id, branch.branchName, e)
+                          }
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete branch
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       ) : (
         <Empty className="border border-dashed min-h-[500px]">

@@ -9,6 +9,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -230,26 +231,7 @@ export function EnvironmentVariablesPage() {
     setEnvVars(updated);
   };
 
-  if (existingVars === undefined) {
-    // Loading state
-    return (
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <div className="h-6 w-48 bg-muted animate-pulse rounded" />
-            <div className="h-4 w-full bg-muted animate-pulse rounded" />
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="h-10 w-full bg-muted animate-pulse rounded" />
-              <div className="h-10 w-full bg-muted animate-pulse rounded" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
+  const isLoading = existingVars === undefined;
   const visibleVars = envVars.filter((v) => !v.isDeleted);
   const hasChanges = envVars.some(
     (v) => v.isNew || v.isModified || v.isDeleted,
@@ -265,8 +247,7 @@ export function EnvironmentVariablesPage() {
             encrypted and injected into your development environment.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Pro tip */}
+        <CardContent className="space-y-6 min-h-[242px]">
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-sm">
@@ -275,89 +256,102 @@ export function EnvironmentVariablesPage() {
             </AlertDescription>
           </Alert>
 
-          {/* List of environment variables */}
-          <div className="space-y-2">
-            {visibleVars.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <h3 className="text-sm font-medium mb-1">
-                  No environment variables
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Get started by adding your first environment variable.
-                </p>
-              </div>
-            ) : (
-              <>
-                {visibleVars.map((envVar, index) => {
-                  const actualIndex = envVars.indexOf(envVar);
-                  return (
-                    <div
-                      key={envVar.id || `new-${actualIndex}`}
-                      className="flex items-center gap-2"
-                    >
-                      <Input
-                        value={envVar.key}
-                        onChange={(e) =>
-                          handleUpdateKey(actualIndex, e.target.value)
-                        }
-                        onPaste={(e) => handlePaste(e, actualIndex)}
-                        placeholder="KEY_NAME"
-                        className="flex-1 font-mono text-sm"
-                        disabled={!envVar.isNew} // Can't change key of existing vars
-                      />
-                      <Input
-                        value={
-                          envVar.value ||
-                          (!envVar.isNew ? "••••••••••••••••" : "")
-                        }
-                        onChange={(e) =>
-                          handleUpdateValue(actualIndex, e.target.value)
-                        }
-                        onPaste={(e) => handlePaste(e, actualIndex)}
-                        onFocus={(e) => {
-                          // Clear placeholder dots when focusing existing var
-                          if (
-                            !envVar.isNew &&
-                            e.target.value === "••••••••••••••••"
-                          ) {
-                            handleUpdateValue(actualIndex, "");
-                          }
-                        }}
-                        placeholder={
-                          envVar.isNew ? "Value" : "Enter new value to update"
-                        }
-                        type="password"
-                        className="flex-1 font-mono text-sm"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(actualIndex)}
+          {isLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <div className="flex-1 h-10 bg-muted animate-pulse rounded" />
+                  <div className="flex-1 h-10 bg-muted animate-pulse rounded" />
+                  <div className="h-10 w-10 bg-muted animate-pulse rounded" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {visibleVars.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <h3 className="text-sm font-medium mb-1">
+                    No environment variables
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Get started by adding your first environment variable.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {visibleVars.map((envVar, index) => {
+                    const actualIndex = envVars.indexOf(envVar);
+                    return (
+                      <div
+                        key={envVar.id || `new-${actualIndex}`}
+                        className="flex items-center gap-2"
                       >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  );
-                })}
-              </>
-            )}
-          </div>
-
-          {/* Footer with actions - always visible */}
-          <div className="flex items-center justify-between pt-4 border-t">
-            <Button onClick={handleAddNew} variant="outline" size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Variable
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={!hasChanges || isSaving}
-              loading={isSaving}
-            >
-              Save
-            </Button>
-          </div>
+                        <Input
+                          value={envVar.key}
+                          onChange={(e) =>
+                            handleUpdateKey(actualIndex, e.target.value)
+                          }
+                          onPaste={(e) => handlePaste(e, actualIndex)}
+                          placeholder="KEY_NAME"
+                          className="flex-1 font-mono text-sm"
+                          disabled={!envVar.isNew}
+                        />
+                        <Input
+                          value={
+                            envVar.value ||
+                            (!envVar.isNew ? "••••••••••••••••" : "")
+                          }
+                          onChange={(e) =>
+                            handleUpdateValue(actualIndex, e.target.value)
+                          }
+                          onPaste={(e) => handlePaste(e, actualIndex)}
+                          onFocus={(e) => {
+                            if (
+                              !envVar.isNew &&
+                              e.target.value === "••••••••••••••••"
+                            ) {
+                              handleUpdateValue(actualIndex, "");
+                            }
+                          }}
+                          placeholder={
+                            envVar.isNew ? "Value" : "Enter new value to update"
+                          }
+                          type="password"
+                          className="flex-1 font-mono text-sm"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(actualIndex)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+            </div>
+          )}
         </CardContent>
+        <CardFooter className="flex items-center justify-between">
+          <Button
+            onClick={handleAddNew}
+            variant="outline"
+            size="sm"
+            disabled={isLoading}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Variable
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={!hasChanges || isSaving || isLoading}
+            loading={isSaving}
+          >
+            Save
+          </Button>
+        </CardFooter>
       </Card>
     </div>
   );

@@ -21,7 +21,7 @@ import { OrgSettingsLayout } from "./layouts/org-settings-layout";
 import { ProjectsPage } from "./pages/projects";
 import { ProjectBranchesPage } from "./pages/project-branches";
 import { GeneralSettingsPage } from "./pages/project-settings/index";
-import { DevelopmentSettingsPage } from "./pages/project-settings/development";
+import { DevelopmentSettingsPage } from "./pages/project-settings/sandbox";
 import { EnvironmentVariablesPage } from "./pages/project-settings/environment";
 import { OrgGeneralSettingsPage } from "./pages/org-settings/index";
 import { ClaudeCodeSettingsPage } from "./pages/org-settings/claude-code";
@@ -60,7 +60,7 @@ createRoot(document.getElementById("root")!).render(
                   <Route index element={<ProjectBranchesPage />} />
                   <Route path="settings" element={<ProjectSettingsLayout />}>
                     <Route index element={<GeneralSettingsPage />} />
-                    <Route path="development" element={<DevelopmentSettingsPage />} />
+                    <Route path="sandbox" element={<DevelopmentSettingsPage />} />
                     <Route path="environment" element={<EnvironmentVariablesPage />} />
                   </Route>
                 </Route>
