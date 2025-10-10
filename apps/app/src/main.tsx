@@ -15,7 +15,10 @@ import { SignInPage } from "./pages/sign-in";
 import { OnboardingPage } from "./pages/onboarding";
 import { NewAccountPage } from "./pages/new-account";
 import { DashboardLayout } from "./layouts/dashboard-layout";
+import { ProjectLayout } from "./layouts/project-layout";
 import { ProjectsPage } from "./pages/projects";
+import { ProjectSessionsPage } from "./pages/project-sessions";
+import { ProjectSettingsPage } from "./pages/project-settings";
 import { SettingsPage } from "./pages/settings";
 import { SessionPage } from "./pages/session";
 
@@ -44,6 +47,10 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/:orgSlug" element={<DashboardLayout />}>
                   <Route index element={<ProjectsPage />} />
                   <Route path="settings" element={<SettingsPage />} />
+                </Route>
+                <Route path="/:orgSlug/project/:projectId" element={<ProjectLayout />}>
+                  <Route index element={<ProjectSessionsPage />} />
+                  <Route path="settings" element={<ProjectSettingsPage />} />
                 </Route>
                 <Route
                   path="/:orgSlug/sessions/:sessionId"

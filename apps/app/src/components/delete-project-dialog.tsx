@@ -17,12 +17,14 @@ interface DeleteProjectDialogProps {
   project: Project | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void;
 }
 
 export function DeleteProjectDialog({
   project,
   open,
   onOpenChange,
+  onSuccess,
 }: DeleteProjectDialogProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const deleteProject = useMutation(api.projects.deleteProject);
@@ -34,6 +36,7 @@ export function DeleteProjectDialog({
     try {
       await deleteProject({ projectId: project._id });
       onOpenChange(false);
+      onSuccess?.();
     } catch (error) {
       console.error("Failed to delete project:", error);
     } finally {

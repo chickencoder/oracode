@@ -4,8 +4,6 @@ import { useQueryState } from "nuqs";
 import { useOrgNavigation } from "../hooks/use-org-navigation";
 import { useProjects, type Project } from "../hooks/use-projects";
 import { NewProjectDialog } from "@/components/new-project-dialog";
-import { NewSessionDialog } from "@/components/new-session-dialog";
-import { EditProjectDialog } from "@/components/edit-project-dialog";
 import { DeleteProjectDialog } from "@/components/delete-project-dialog";
 import {
   Card,
@@ -49,29 +47,22 @@ export function ProjectsPage() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const navigate = useNavigate();
   const [search, setSearch] = useQueryState("q", { defaultValue: "" });
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
 
   const { organization, isLoaded } = useOrgNavigation(orgSlug);
   const { projects, isLoading } = useProjects();
 
   const handleProjectClick = (project: Project) => {
-    setSelectedProject(project);
-    setSessionDialogOpen(true);
+    navigate(`/${orgSlug}/project/${project._id}`);
   };
 
   const handleLaunchSession = (project: Project) => {
-    setSelectedProject(project);
-    setSessionDialogOpen(true);
+    navigate(`/${orgSlug}/project/${project._id}`);
   };
 
   const handleEditClick = (project: Project) => {
-    setProjectToEdit(project);
-    setEditDialogOpen(true);
+    navigate(`/${orgSlug}/project/${project._id}/settings`);
   };
 
   const handleDeleteClick = (project: Project) => {
@@ -188,16 +179,6 @@ export function ProjectsPage() {
             ))}
           </div>
 
-          <NewSessionDialog
-            project={selectedProject}
-            open={sessionDialogOpen}
-            onOpenChange={setSessionDialogOpen}
-          />
-          <EditProjectDialog
-            project={projectToEdit}
-            open={editDialogOpen}
-            onOpenChange={setEditDialogOpen}
-          />
           <DeleteProjectDialog
             project={projectToDelete}
             open={deleteDialogOpen}
