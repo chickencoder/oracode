@@ -85,7 +85,6 @@ export function ProjectSessionsPage() {
         <Button
           onClick={handleCreateSession}
           loading={isCreating}
-          size="lg"
         >
           New Session
         </Button>

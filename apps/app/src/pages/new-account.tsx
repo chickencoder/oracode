@@ -71,7 +71,7 @@ export function NewAccountPage() {
   const handleInstallationCallback = async (githubOrgLogin: string) => {
     try {
       const expectedSlug = normalizeOrgSlug(githubOrgLogin);
-      const githubAvatar = getGitHubAvatarUrl(githubOrgLogin);
+      const githubAvatar = getGitHubAvatarUrl(githubOrgLogin, 200);
 
       // Step 1: Find or create Clerk organization
       let clerkOrg: { id: string; slug: string | null };

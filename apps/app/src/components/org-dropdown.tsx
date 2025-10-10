@@ -1,5 +1,3 @@
-"use client";
-
 import * as React from "react";
 import { ChevronsUpDownIcon, PlusIcon } from "lucide-react";
 import { useNavigate } from "react-router";
@@ -56,30 +54,23 @@ export function OrgDropdown({
   const selectedOrg = orgs.find((org) => org.slug === selectedValue);
 
   if (isLoading || !selectedOrg) {
-    return <Skeleton className={cn("h-9 w-52", className)} />;
+    return <Skeleton className={cn("h-6 w-6", className)} />;
   }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
-          variant="outline"
+          variant="ghost"
+          size="icon"
           role="combobox"
           aria-expanded={open}
-          className={cn("w-52 justify-between", className)}
+          className={cn("h-6 w-6 p-0", className)}
         >
-          <div className="flex items-center gap-2">
-            <img
-              src={`https://github.com/${selectedOrg.slug}.png`}
-              alt={selectedOrg.name}
-              className="h-5 w-5 rounded"
-            />
-            <span>{selectedOrg.name}</span>
-          </div>
-          <ChevronsUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <ChevronsUpDownIcon className="h-3.5 w-3.5 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-52 p-0">
+      <PopoverContent align="start" className="w-52 p-0">
         <Command>
           <CommandInput placeholder="Search accounts..." />
           <CommandList>
@@ -92,7 +83,7 @@ export function OrgDropdown({
                   onSelect={handleSelect}
                 >
                   <img
-                    src={`https://github.com/${org.slug}.png`}
+                    src={`https://github.com/${org.slug}.png?s=40`}
                     alt={org.name}
                     className="mr-1 size-5 rounded"
                   />

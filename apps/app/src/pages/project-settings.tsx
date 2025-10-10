@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "convex/react";
+import { toast } from "sonner";
 import { api } from "@repo/convex/_generated/api";
 import type { Id } from "@repo/convex/_generated/dataModel";
 import {
@@ -80,7 +81,7 @@ export function ProjectSettingsPage() {
         },
       });
 
-      // Show success feedback or redirect
+      toast.success("Project settings updated successfully");
     } catch (error) {
       console.error("Failed to update project:", error);
     }
