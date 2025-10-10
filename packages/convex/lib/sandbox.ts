@@ -1,49 +1,29 @@
 "use node";
 
-import { Sandbox } from "@vercel/sandbox";
+import { Daytona } from "@daytonaio/sdk";
+import type { CommandResult, WorkerOptions, ServiceResult } from "./types";
 import {
   getBundle,
   getWorkerEnv,
   getStartCommand,
 } from "./workerBundle";
-import type { CommandResult, WorkerOptions, ServiceResult } from "./types";
 
 export async function runCommandInSandbox(
-  sandbox: Sandbox,
+  sandbox: any,
   command: string,
   args: string[] = [],
 ): Promise<CommandResult> {
   try {
-    const result = await sandbox.runCommand(command, args);
-
-    for await (const log of result.logs()) {
-      console.log("LOG", log);
-    }
-
-    // Handle stdout and stderr properly
-    let stdout = "";
-    let stderr = "";
-
-    try {
-      stdout = await (result.stdout as () => Promise<string>)();
-    } catch (error) {
-      console.warn("Failed to read stdout:", error);
-    }
-
-    try {
-      stderr = await (result.stderr as () => Promise<string>)();
-    } catch (error) {
-      console.warn("Failed to read stderr:", error);
-    }
-
     const fullCommand =
       args.length > 0 ? `${command} ${args.join(" ")}` : command;
+
+    const result = await sandbox.process.executeCommand(fullCommand);
 
     return {
       success: result.exitCode === 0,
       exitCode: result.exitCode,
-      output: stdout,
-      error: stderr,
+      output: result.result || "",
+      error: result.exitCode !== 0 ? result.result || "" : "",
       command: fullCommand,
     };
   } catch (error: unknown) {
@@ -60,19 +40,17 @@ export async function runCommandInSandbox(
 }
 
 export async function injectWorkerIntoSandbox(
-  sandbox: Sandbox,
+  sandbox: any,
   options: WorkerOptions,
 ): Promise<ServiceResult> {
   try {
     const bundle = getBundle();
 
-    await sandbox.writeFiles([
-      {
-        path: "/tmp/sandbox-worker.js",
-        content: Buffer.from(bundle.content),
-      },
-    ]);
+    // Write worker bundle to sandbox
+    const fileContent = Buffer.from(bundle.content, 'utf-8');
+    await sandbox.fs.uploadFile(fileContent, "/tmp/sandbox-worker.js");
 
+    // Make it executable
     const chmodResult = await runCommandInSandbox(sandbox, "chmod", [
       "+x",
       "/tmp/sandbox-worker.js",
@@ -81,31 +59,24 @@ export async function injectWorkerIntoSandbox(
       throw new Error(`Failed to make worker executable: ${chmodResult.error}`);
     }
 
-    const installResult = await runCommandInSandbox(sandbox, "npm", [
-      "install",
-      "-g",
-      "@anthropic-ai/claude-agent-sdk",
-      "@anthropic-ai/sdk",
-    ]);
-    if (!installResult.success) {
-      throw new Error(
-        `Failed to install dependencies: ${installResult.error}`,
-      );
-    }
+    // Create persistent session for worker
+    const workerSessionId = `sandbox-worker-${Date.now()}`;
+    await sandbox.process.createSession(workerSessionId);
 
+    // Start worker with environment variables in session
     const envVars = getWorkerEnv(options);
     const startCommand = getStartCommand(envVars);
 
-    const startResult = await runCommandInSandbox(sandbox, "bash", [
-      "-c",
-      startCommand,
-    ]);
+    const workerResult = await sandbox.process.executeSessionCommand(workerSessionId, {
+      command: startCommand,
+      runAsync: true, // Run in background
+    });
 
-    if (!startResult.success) {
-      throw new Error(`Failed to start worker: ${startResult.error}`);
-    }
-
-    return { success: true };
+    return {
+      success: true,
+      sessionId: workerSessionId,
+      commandId: workerResult.cmdId,
+    };
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error occurred";

@@ -16,6 +16,7 @@ import type {
 import type * as github from "../github.js";
 import type * as http from "../http.js";
 import type * as lib_clerkAuth from "../lib/clerkAuth.js";
+import type * as lib_daytonaImage from "../lib/daytonaImage.js";
 import type * as lib_githubAuth from "../lib/githubAuth.js";
 import type * as lib_sandbox from "../lib/sandbox.js";
 import type * as lib_types from "../lib/types.js";
@@ -39,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   github: typeof github;
   http: typeof http;
   "lib/clerkAuth": typeof lib_clerkAuth;
+  "lib/daytonaImage": typeof lib_daytonaImage;
   "lib/githubAuth": typeof lib_githubAuth;
   "lib/sandbox": typeof lib_sandbox;
   "lib/types": typeof lib_types;

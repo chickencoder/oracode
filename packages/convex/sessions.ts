@@ -44,21 +44,28 @@ export const getSessionById = query({
       sandboxStatus: v.optional(
         v.union(v.literal("creating"), v.literal("ready"), v.literal("error")),
       ),
+      sandboxState: v.optional(
+        v.union(
+          v.literal("started"),
+          v.literal("stopped"),
+          v.literal("archived"),
+        ),
+      ),
       sandboxDomain: v.optional(v.string()),
-      sandboxCreatedAt: v.optional(v.number()),
-      sandboxTimeoutAt: v.optional(v.number()),
-      sandboxTimeoutDuration: v.optional(v.number()),
+      sandboxPreviewToken: v.optional(v.string()),
       sandboxError: v.optional(v.string()),
       sandboxLoadingStage: v.optional(
         v.union(
           v.literal("provisioning"),
-          v.literal("cloning"),
           v.literal("installing"),
           v.literal("starting"),
         ),
       ),
-      // Computed field
-      isTimedOut: v.boolean(),
+      // Sandbox session fields
+      devSessionId: v.optional(v.string()),
+      devCommandId: v.optional(v.string()),
+      workerSessionId: v.optional(v.string()),
+      workerCommandId: v.optional(v.string()),
     }),
     v.null(),
   ),
@@ -81,16 +88,7 @@ export const getSessionById = query({
       throw new Error("Not authorized to access this session");
     }
 
-    // Compute isTimedOut
-    const now = Date.now();
-    const isTimedOut =
-      session.sandboxTimeoutAt !== undefined &&
-      now >= session.sandboxTimeoutAt;
-
-    return {
-      ...session,
-      isTimedOut,
-    };
+    return session;
   },
 });
 
@@ -111,21 +109,28 @@ export const getSessionsByProject = query({
       sandboxStatus: v.optional(
         v.union(v.literal("creating"), v.literal("ready"), v.literal("error")),
       ),
+      sandboxState: v.optional(
+        v.union(
+          v.literal("started"),
+          v.literal("stopped"),
+          v.literal("archived"),
+        ),
+      ),
       sandboxDomain: v.optional(v.string()),
-      sandboxCreatedAt: v.optional(v.number()),
-      sandboxTimeoutAt: v.optional(v.number()),
-      sandboxTimeoutDuration: v.optional(v.number()),
+      sandboxPreviewToken: v.optional(v.string()),
       sandboxError: v.optional(v.string()),
       sandboxLoadingStage: v.optional(
         v.union(
           v.literal("provisioning"),
-          v.literal("cloning"),
           v.literal("installing"),
           v.literal("starting"),
         ),
       ),
-      // Computed field
-      isTimedOut: v.boolean(),
+      // Sandbox session fields
+      devSessionId: v.optional(v.string()),
+      devCommandId: v.optional(v.string()),
+      workerSessionId: v.optional(v.string()),
+      workerCommandId: v.optional(v.string()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -142,20 +147,11 @@ export const getSessionsByProject = query({
       throw new Error("Not authorized to access this project");
     }
 
-    const sessions = await ctx.db
+    return await ctx.db
       .query("sessions")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
       .order("desc")
       .collect();
-
-    // Compute isTimedOut for each session
-    const now = Date.now();
-    return sessions.map((session) => ({
-      ...session,
-      isTimedOut:
-        session.sandboxTimeoutAt !== undefined &&
-        now >= session.sandboxTimeoutAt,
-    }));
   },
 });
 
@@ -246,6 +242,7 @@ export const updateSessionSandboxDomain = mutation({
   args: {
     sessionId: v.id("sessions"),
     domain: v.string(),
+    previewToken: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -268,6 +265,7 @@ export const updateSessionSandboxDomain = mutation({
 
     await ctx.db.patch(args.sessionId, {
       sandboxDomain: args.domain,
+      sandboxPreviewToken: args.previewToken,
     });
 
     return null;
@@ -307,12 +305,47 @@ export const clearSessionSandboxLoadingStage = mutation({
   },
 });
 
+// Mutation to store dev server Daytona session
+export const updateSessionDevServerSession = mutation({
+  args: {
+    sessionId: v.id("sessions"),
+    devSessionId: v.string(),
+    devCommandId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.sessionId, {
+      devSessionId: args.devSessionId,
+      devCommandId: args.devCommandId,
+    });
+    return null;
+  },
+});
+
+// Mutation to store worker Daytona session
+export const updateSessionWorkerSession = mutation({
+  args: {
+    sessionId: v.id("sessions"),
+    workerSessionId: v.string(),
+    workerCommandId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.sessionId, {
+      workerSessionId: args.workerSessionId,
+      workerCommandId: args.workerCommandId,
+    });
+    return null;
+  },
+});
+
 // Mutation to update sandbox to "ready" status
 export const updateSessionSandboxReady = mutation({
   args: {
     sessionId: v.id("sessions"),
     sandboxId: v.string(),
     domain: v.string(),
+    previewToken: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -336,6 +369,7 @@ export const updateSessionSandboxReady = mutation({
     await ctx.db.patch(args.sessionId, {
       sandboxId: args.sandboxId,
       sandboxDomain: args.domain,
+      sandboxPreviewToken: args.previewToken,
       sandboxStatus: "ready",
       sandboxLoadingStage: undefined,
     });
@@ -350,7 +384,6 @@ export const updateSessionSandboxStage = mutation({
     sessionId: v.id("sessions"),
     stage: v.union(
       v.literal("provisioning"),
-      v.literal("cloning"),
       v.literal("installing"),
       v.literal("starting"),
     ),
@@ -386,7 +419,6 @@ export const updateSessionSandboxStage = mutation({
 export const initSessionSandbox = mutation({
   args: {
     sessionId: v.id("sessions"),
-    timeoutDuration: v.number(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -414,15 +446,47 @@ export const initSessionSandbox = mutation({
       );
     }
 
-    const now = Date.now();
-
     await ctx.db.patch(args.sessionId, {
       sandboxStatus: "creating",
-      sandboxCreatedAt: now,
-      sandboxTimeoutAt: now + args.timeoutDuration,
-      sandboxTimeoutDuration: args.timeoutDuration,
       sandboxError: undefined,
       sandboxLoadingStage: "provisioning",
+    });
+
+    return null;
+  },
+});
+
+// Mutation to update sandbox state (started/stopped/archived)
+export const updateSessionSandboxState = mutation({
+  args: {
+    sessionId: v.id("sessions"),
+    state: v.union(
+      v.literal("started"),
+      v.literal("stopped"),
+      v.literal("archived"),
+    ),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    // Get authenticated user
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.orgId || typeof identity.orgId !== "string") {
+      throw new Error("User must be authenticated with an organization");
+    }
+    const orgId = identity.orgId;
+
+    // Verify session belongs to user's org
+    const session = await ctx.db.get(args.sessionId);
+    if (!session) {
+      throw new Error("Session not found");
+    }
+    const project = await ctx.db.get(session.projectId);
+    if (!project || project.orgId !== orgId) {
+      throw new Error("Not authorized to access this session");
+    }
+
+    await ctx.db.patch(args.sessionId, {
+      sandboxState: args.state,
     });
 
     return null;

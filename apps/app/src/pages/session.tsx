@@ -3,7 +3,7 @@ import { useQuery } from "convex/react";
 import { api } from "@repo/convex/_generated/api";
 import type { Id } from "@repo/convex/_generated/dataModel";
 import { useEffect } from "react";
-import { useAuth } from "@clerk/clerk-react";
+import { useOrganization } from "@clerk/clerk-react";
 import { ChatPanel } from "@/components/chat-panel";
 import { PreviewPanel } from "@/components/preview-panel";
 import { useSandbox } from "@/hooks/use-sandbox";
@@ -11,14 +11,14 @@ import { useSandbox } from "@/hooks/use-sandbox";
 export function SessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
-  const { isLoaded } = useAuth();
+  const { organization } = useOrganization();
 
   const session = useQuery(
     api.sessions.getSessionById,
-    sessionId && isLoaded ? { sessionId: sessionId as Id<"sessions"> } : "skip",
+    sessionId && organization?.id ? { sessionId: sessionId as Id<"sessions"> } : "skip",
   );
 
-  const { domain, hasError, error, isCreating, loadingStage, isReady, retrySandbox } =
+  const { previewUrl, hasError, error, isCreating, loadingStage, isReady, retrySandbox } =
     useSandbox(sessionId ? (sessionId as Id<"sessions">) : null);
 
   useEffect(() => {
@@ -37,7 +37,7 @@ export function SessionPage() {
           isSandboxReady={isReady}
         />
         <PreviewPanel
-          domain={domain}
+          domain={previewUrl}
           hasError={hasError}
           error={error}
           isCreating={isCreating}

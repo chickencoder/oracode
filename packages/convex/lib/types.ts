@@ -6,22 +6,16 @@ export interface CommandResult {
   command: string;
 }
 
-export interface R2Config {
-  endpoint: string;
-  accessKeyId: string;
-  secretAccessKey: string;
-  bucketName: string;
-}
-
 export interface WorkerOptions {
   sandboxId: string;
   convexUrl: string;
   sessionId: string;
   clerkToken: string;
-  r2Config?: R2Config;
 }
 
 export interface ServiceResult {
   success: boolean;
   error?: string;
+  sessionId?: string; // Daytona session ID
+  commandId?: string; // Command ID within session
 }

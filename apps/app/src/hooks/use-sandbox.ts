@@ -7,67 +7,103 @@ import { useOrganization } from "@clerk/clerk-react";
 export function useSandbox(sessionId: Id<"sessions"> | null | undefined) {
   const { organization } = useOrganization();
   const creationInProgress = useRef(false);
+  const hasAttempted = useRef(false);
 
   // Query session directly (includes sandbox fields)
+  // Skip if no sessionId or no organization loaded yet
   const session = useQuery(
     api.sessions.getSessionById,
-    sessionId && organization ? { sessionId } : "skip",
+    sessionId && organization?.id ? { sessionId } : "skip",
   );
 
   const startSandboxAction = useAction(api.sandboxActions.startSandbox);
   const retrySandboxAction = useAction(api.sandboxActions.retrySandbox);
 
-  // Auto-create sandbox if needed (only when undefined/null or timed out, NOT on error)
+  // Auto-create or auto-restart sandbox
   useEffect(() => {
     if (!sessionId || !session || creationInProgress.current) return;
 
-    const needsSandbox =
-      !session.sandboxStatus ||
-      (session.sandboxStatus === "ready" && session.isTimedOut);
+    // Don't auto-retry if there's an error - user must manually retry
+    if (session.sandboxStatus === "error") {
+      hasAttempted.current = true;
+      return;
+    }
 
-    if (needsSandbox) {
+    // If no sandbox exists and we haven't attempted yet, create one
+    if (!session.sandboxId && !hasAttempted.current) {
       creationInProgress.current = true;
-      console.log("Auto-creating sandbox for session:", sessionId);
+      hasAttempted.current = true;
       startSandboxAction({ sessionId })
-        .then((result) => {
-          console.log("Sandbox created:", result);
+        .then(() => {
           creationInProgress.current = false;
         })
         .catch((error) => {
           console.error("Failed to create sandbox:", error);
           creationInProgress.current = false;
         });
+      return;
     }
-  }, [sessionId, session?.sandboxStatus, session?.isTimedOut, startSandboxAction]);
+
+    // If sandbox exists but stopped/archived, restart it automatically
+    const shouldRestart =
+      session.sandboxId &&
+      session.sandboxState !== "started" &&
+      session.sandboxStatus !== "creating";
+
+    if (shouldRestart) {
+      creationInProgress.current = true;
+      retrySandboxAction({ sessionId })
+        .then(() => {
+          creationInProgress.current = false;
+        })
+        .catch((error) => {
+          console.error("Failed to restart sandbox:", error);
+          creationInProgress.current = false;
+        });
+    }
+  }, [sessionId, session, startSandboxAction, retrySandboxAction]);
 
   const retrySandbox = () => {
-    if (!sessionId || creationInProgress.current) return;
+    if (!sessionId || !session || creationInProgress.current) return;
     creationInProgress.current = true;
-    console.log("Retrying sandbox for session:", sessionId);
-    retrySandboxAction({ sessionId })
-      .then((result) => {
-        console.log("Sandbox retry succeeded:", result);
+    hasAttempted.current = false; // Reset attempt flag for manual retry
+
+    // If no sandboxId exists, create new sandbox, otherwise restart existing
+    const action = session.sandboxId ? retrySandboxAction : startSandboxAction;
+
+    action({ sessionId })
+      .then(() => {
         creationInProgress.current = false;
       })
       .catch((error) => {
         console.error("Sandbox retry failed:", error);
         creationInProgress.current = false;
+        hasAttempted.current = true; // Set flag again to prevent auto-retry loop
       });
   };
 
-  // Sandbox is only truly ready when status is "ready", has domain, and not timed out
+  // Sandbox is ready when status is "ready", state is "started", and has domain
   const isReady =
     session?.sandboxStatus === "ready" &&
-    !!session?.sandboxDomain &&
-    !session?.isTimedOut;
+    session?.sandboxState === "started" &&
+    !!session?.sandboxDomain;
+
+  // Build preview URL with authentication token
+  const previewUrl = session?.sandboxDomain
+    ? session.sandboxPreviewToken
+      ? `${session.sandboxDomain}?token=${session.sandboxPreviewToken}`
+      : session.sandboxDomain
+    : "";
 
   return {
     sandbox: session, // For backwards compatibility
     isCreating: session?.sandboxStatus === "creating",
     isReady,
+    isStopped: session?.sandboxState === "stopped",
+    isArchived: session?.sandboxState === "archived",
     hasError: session?.sandboxStatus === "error",
-    isTimedOut: session?.isTimedOut || false,
     domain: session?.sandboxDomain || "",
+    previewUrl, // Use this for iframe src
     error: session?.sandboxError,
     loadingStage: session?.sandboxLoadingStage,
     retrySandbox,
