@@ -314,13 +314,12 @@ export const startSandbox = action({
       console.log("Stored sandbox domain and token");
 
       // Step 18: Inject sandbox worker
-      console.log("=== WORKER INJECTION START ===");
+      console.log("Injecting sandbox worker...");
       const convexUrl = process.env.CONVEX_URL;
 
       if (!convexUrl) {
-        console.error("⚠️ WORKER INJECTION SKIPPED: No CONVEX_URL found");
+        console.warn("⚠️ No CONVEX_URL found, skipping worker injection");
       } else {
-        console.log("WORKER: CONVEX_URL present, injecting worker");
         const workerResult = await injectWorkerIntoSandbox(sandbox, {
           sandboxId: sandboxId,
           convexUrl,
@@ -329,12 +328,12 @@ export const startSandbox = action({
         });
 
         if (!workerResult.success) {
-          console.error(
-            "❌ WORKER INJECTION FAILED:",
+          console.warn(
+            "⚠️ Failed to inject worker, continuing without it:",
             workerResult.error,
           );
         } else {
-          console.log("✅ WORKER INJECTION SUCCESS");
+          console.log("Sandbox worker injected successfully");
 
           // Store worker session IDs for monitoring
           if (workerResult.sessionId && workerResult.commandId) {
@@ -343,34 +342,9 @@ export const startSandbox = action({
               workerSessionId: workerResult.sessionId,
               workerCommandId: workerResult.commandId,
             });
-            console.log("✅ WORKER SESSION IDs STORED");
-
-            // Wait a moment for worker to start, then check logs
-            await new Promise((resolve) => setTimeout(resolve, 3000));
-
-            // Check the actual log file
-            try {
-              const catResult = await sandbox.process.executeCommand(
-                "cat /tmp/worker.log"
-              );
-              console.log("=== WORKER LOG FILE (after 3s) ===");
-              console.log(catResult.result || "(empty)");
-              console.log("=== END WORKER LOG FILE ===");
-
-              // Check if process is still running
-              const psResult = await sandbox.process.executeCommand(
-                "ps aux | grep sandbox-worker.js | grep -v grep"
-              );
-              console.log("=== WORKER PROCESS STATUS ===");
-              console.log(psResult.result || "(not running)");
-              console.log("=== END PROCESS STATUS ===");
-            } catch (logError) {
-              console.warn("Could not fetch worker logs:", logError);
-            }
           }
         }
       }
-      console.log("=== WORKER INJECTION END ===")
 
       // Step 19: Clear loading stage (sandbox is ready)
       await ctx.runMutation(api.sessions.clearSessionSandboxLoadingStage, {
