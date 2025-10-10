@@ -16,10 +16,15 @@ import { OnboardingPage } from "./pages/onboarding";
 import { NewAccountPage } from "./pages/new-account";
 import { DashboardLayout } from "./layouts/dashboard-layout";
 import { ProjectLayout } from "./layouts/project-layout";
+import { ProjectSettingsLayout } from "./layouts/project-settings-layout";
+import { OrgSettingsLayout } from "./layouts/org-settings-layout";
 import { ProjectsPage } from "./pages/projects";
 import { ProjectSessionsPage } from "./pages/project-sessions";
-import { ProjectSettingsPage } from "./pages/project-settings";
-import { SettingsPage } from "./pages/settings";
+import { GeneralSettingsPage } from "./pages/project-settings/index";
+import { DevelopmentSettingsPage } from "./pages/project-settings/development";
+import { EnvironmentVariablesPage } from "./pages/project-settings/environment";
+import { OrgGeneralSettingsPage } from "./pages/org-settings/index";
+import { ClaudeCodeSettingsPage } from "./pages/org-settings/claude-code";
 import { SessionPage } from "./pages/session";
 
 // Import your Publishable Key
@@ -46,11 +51,18 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/new-account" element={<NewAccountPage />} />
                 <Route path="/:orgSlug" element={<DashboardLayout />}>
                   <Route index element={<ProjectsPage />} />
-                  <Route path="settings" element={<SettingsPage />} />
+                  <Route path="settings" element={<OrgSettingsLayout />}>
+                    <Route index element={<OrgGeneralSettingsPage />} />
+                    <Route path="claude-code" element={<ClaudeCodeSettingsPage />} />
+                  </Route>
                 </Route>
                 <Route path="/:orgSlug/project/:projectId" element={<ProjectLayout />}>
                   <Route index element={<ProjectSessionsPage />} />
-                  <Route path="settings" element={<ProjectSettingsPage />} />
+                  <Route path="settings" element={<ProjectSettingsLayout />}>
+                    <Route index element={<GeneralSettingsPage />} />
+                    <Route path="development" element={<DevelopmentSettingsPage />} />
+                    <Route path="environment" element={<EnvironmentVariablesPage />} />
+                  </Route>
                 </Route>
                 <Route
                   path="/:orgSlug/sessions/:sessionId"

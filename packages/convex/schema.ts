@@ -88,6 +88,14 @@ export default defineSchema({
       devCommand: v.string(), // Command to run dev server
       port: v.number(), // Port the dev server runs on
     }),
+    environmentVariables: v.optional(
+      v.array(
+        v.object({
+          key: v.string(), // Environment variable name
+          value: v.string(), // Environment variable value
+        })
+      )
+    ), // Environment variables for the project
     createdAt: v.number(),
   }).index("by_org", ["orgId"]),
 });

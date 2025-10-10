@@ -52,6 +52,14 @@ export const getProjectById = query({
         devCommand: v.string(),
         port: v.number(),
       }),
+      environmentVariables: v.optional(
+        v.array(
+          v.object({
+            key: v.string(),
+            value: v.string(),
+          })
+        )
+      ),
       createdAt: v.number(),
     }),
     v.null(),
@@ -82,6 +90,7 @@ export const getProjectById = query({
       name: project.name,
       description: project.description,
       settings: project.settings,
+      environmentVariables: project.environmentVariables,
       createdAt: project.createdAt,
     };
   },
@@ -101,6 +110,14 @@ export const getProjects = query({
         devCommand: v.string(),
         port: v.number(),
       }),
+      environmentVariables: v.optional(
+        v.array(
+          v.object({
+            key: v.string(),
+            value: v.string(),
+          })
+        )
+      ),
       createdAt: v.number(),
     })
   ),
@@ -125,6 +142,7 @@ export const getProjects = query({
       name: project.name,
       description: project.description,
       settings: project.settings,
+      environmentVariables: project.environmentVariables,
       createdAt: project.createdAt,
     }));
   },
@@ -165,6 +183,44 @@ export const updateProject = mutation({
       name: args.name,
       description: args.description ?? "",
       settings: args.settings,
+    });
+
+    return null;
+  },
+});
+
+// Update environment variables for a project
+export const updateEnvironmentVariables = mutation({
+  args: {
+    projectId: v.id("projects"),
+    environmentVariables: v.array(
+      v.object({
+        key: v.string(),
+        value: v.string(),
+      })
+    ),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    // Get orgId from authenticated user
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.orgId || typeof identity.orgId !== "string") {
+      throw new Error("User must be authenticated with an organization");
+    }
+    const orgId = identity.orgId;
+
+    // Get the project and verify ownership
+    const project = await ctx.db.get(args.projectId);
+    if (!project) {
+      throw new Error("Project not found");
+    }
+    if (project.orgId !== orgId) {
+      throw new Error("Not authorized to update this project");
+    }
+
+    // Update the environment variables
+    await ctx.db.patch(args.projectId, {
+      environmentVariables: args.environmentVariables,
     });
 
     return null;
