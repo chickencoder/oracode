@@ -23,8 +23,8 @@ interface DashboardHeaderProps {
   onProjectSelect?: (projectId: Id<"projects">) => void;
   isProjectsLoading?: boolean;
 
-  // Session breadcrumb (optional)
-  sessionId?: Id<"sessions">;
+  // Branch breadcrumb (optional)
+  branchId?: Id<"branches">;
 }
 
 export function DashboardHeader({
@@ -38,10 +38,10 @@ export function DashboardHeader({
   currentProjectId,
   onProjectSelect,
   isProjectsLoading,
-  sessionId,
+  branchId,
 }: DashboardHeaderProps) {
   return (
-    <header className="bg-card mb-4">
+    <header className="bg-card mb-4 relative">
       <div className="border-b">
         <div className="flex items-center justify-between p-4">
           <DashboardBreadcrumbs
@@ -53,7 +53,7 @@ export function DashboardHeader({
             currentProjectId={currentProjectId}
             onProjectSelect={onProjectSelect}
             isProjectsLoading={isProjectsLoading}
-            sessionId={sessionId}
+            branchId={branchId}
           />
           <div className="flex items-center gap-4">
             <span className="rounded-full border size-8 flex items-center justify-center">
@@ -62,7 +62,7 @@ export function DashboardHeader({
           </div>
         </div>
       </div>
-      <nav className="border-b">
+      <nav className="border-b sticky top-0">
         <div className="flex items-center px-4 gap-1">
           {tabs.map((tab) => {
             const fullPath = `${basePath}${tab.href}`;

@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useAction } from "convex/react";
 import { toast } from "sonner";
+import { useOrganization } from "@clerk/clerk-react";
 import { api } from "@repo/convex/_generated/api";
 import type { Id } from "@repo/convex/_generated/dataModel";
 import {
@@ -13,110 +14,246 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Info } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
+interface EnvVar {
+  id?: string; // ID for existing vars (from database)
+  key: string;
+  value: string;
+  isNew?: boolean; // Track if this is a new var being added
+  isModified?: boolean; // Track if value was changed
+  isDeleted?: boolean; // Track if marked for deletion
+}
 
 export function EnvironmentVariablesPage() {
   const { projectId } = useParams<{ projectId: string }>();
-  const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>(
-    [],
-  );
-  const [newVars, setNewVars] = useState<Array<{ key: string; value: string }>>(
-    [],
-  );
+  const { organization } = useOrganization();
+  const [envVars, setEnvVars] = useState<EnvVar[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
-  const project = useQuery(
-    api.projects.getProjectById,
-    projectId ? { projectId: projectId as Id<"projects"> } : "skip",
+  // Load environment variables from the new secure storage
+  const existingVars = useQuery(
+    api.projectEnvironmentVariables.list,
+    projectId && organization?.id
+      ? { projectId: projectId as Id<"projects"> }
+      : "skip",
   );
 
-  const updateEnvironmentVariables = useMutation(
-    api.projects.updateEnvironmentVariables,
-  );
+  const setEnvVar = useAction(api.projectEnvironmentVariables.set);
+  const removeEnvVar = useAction(api.projectEnvironmentVariables.remove);
 
-  // Load environment variables from project
+  // Load environment variables when data is available
   useEffect(() => {
-    if (project?.environmentVariables) {
-      setEnvVars(project.environmentVariables);
+    if (existingVars) {
+      // Map database vars to UI state
+      // Values are encrypted, so we show them as empty (user must re-enter to update)
+      setEnvVars(
+        existingVars.map((v) => ({
+          id: v._id,
+          key: v.key,
+          value: "", // Don't show encrypted values
+          isNew: false,
+          isModified: false,
+          isDeleted: false,
+        })),
+      );
     }
-  }, [project]);
+  }, [existingVars]);
+
+  const parseEnvFile = (content: string): EnvVar[] => {
+    const lines = content.split("\n");
+    const parsed: EnvVar[] = [];
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      // Skip empty lines and comments
+      if (!trimmed || trimmed.startsWith("#")) {
+        continue;
+      }
+
+      // Parse KEY=VALUE format
+      const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+      if (match) {
+        const [, key, value] = match;
+        // Remove surrounding quotes if present
+        const cleanValue = value.replace(/^["']|["']$/g, "");
+        parsed.push({
+          key: key,
+          value: cleanValue,
+          isNew: true,
+          isModified: false,
+          isDeleted: false,
+        });
+      }
+    }
+
+    return parsed;
+  };
+
+  const handlePaste = (
+    e: React.ClipboardEvent<HTMLInputElement>,
+    index: number,
+  ) => {
+    const pastedText = e.clipboardData.getData("text");
+
+    // Check if the pasted content looks like an env file (has = signs)
+    const hasEqualsSign = pastedText.includes("=");
+
+    if (hasEqualsSign) {
+      e.preventDefault();
+
+      try {
+        const parsed = parseEnvFile(pastedText);
+        if (parsed.length === 0) {
+          // If no valid vars found, just paste normally
+          return;
+        }
+
+        // Merge with existing vars, marking new ones
+        const existingKeys = new Set(
+          envVars.filter((v) => !v.isDeleted).map((v) => v.key),
+        );
+        const newVars = parsed.filter((v) => !existingKeys.has(v.key));
+
+        if (newVars.length > 0) {
+          setEnvVars([...envVars, ...newVars]);
+          toast.success(
+            `Added ${newVars.length} environment variable${newVars.length > 1 ? "s" : ""} from paste`,
+          );
+        } else {
+          toast.info("All variables from paste already exist");
+        }
+      } catch (error) {
+        // If parsing fails, just paste normally
+        console.error("Failed to parse env file:", error);
+      }
+    }
+    // Otherwise, let the default paste behavior happen
+  };
 
   const handleSave = async () => {
     if (!projectId) return;
 
-    // Combine existing vars and new vars (filter out empty new vars)
-    const validNewVars = newVars.filter((v) => v.key && v.value);
-    const varsToSave = [...envVars, ...validNewVars];
-
     setIsSaving(true);
     try {
-      await updateEnvironmentVariables({
-        projectId: projectId as Id<"projects">,
-        environmentVariables: varsToSave,
-      });
+      // Process deletions first
+      const deletions = envVars.filter((v) => v.isDeleted && !v.isNew);
+      for (const envVar of deletions) {
+        try {
+          await removeEnvVar({
+            projectId: projectId as Id<"projects">,
+            key: envVar.key,
+          });
+        } catch (error) {
+          console.error(`Failed to delete ${envVar.key}:`, error);
+          throw new Error(`Failed to delete ${envVar.key}`);
+        }
+      }
+
+      // Process additions and updates
+      const updates = envVars.filter(
+        (v) => !v.isDeleted && (v.isNew || v.isModified),
+      );
+      for (const envVar of updates) {
+        // Only save if there's a value (required for new vars and updates)
+        if (envVar.value.trim()) {
+          try {
+            await setEnvVar({
+              projectId: projectId as Id<"projects">,
+              key: envVar.key,
+              value: envVar.value,
+            });
+          } catch (error) {
+            console.error(`Failed to set ${envVar.key}:`, error);
+            throw new Error(`Failed to set ${envVar.key}`);
+          }
+        }
+      }
+
       toast.success("Environment variables updated successfully");
-      // Reset new vars state
-      setNewVars([]);
+
+      // Remove deleted vars from state and reset modified flags
+      setEnvVars((vars) =>
+        vars
+          .filter((v) => !v.isDeleted)
+          .map((v) => ({
+            ...v,
+            value: "", // Clear values after save
+            isNew: false,
+            isModified: false,
+          })),
+      );
     } catch (error) {
       console.error("Failed to update environment variables:", error);
-      toast.error("Failed to update environment variables");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to update environment variables",
+      );
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleAddNew = () => {
-    setNewVars([...newVars, { key: "", value: "" }]);
-  };
-
-  const handleRemoveNew = (index: number) => {
-    setNewVars(newVars.filter((_, i) => i !== index));
-  };
-
-  const handleUpdateNewKey = (index: number, key: string) => {
-    const updated = [...newVars];
-    updated[index].key = key;
-    setNewVars(updated);
-  };
-
-  const handleUpdateNewValue = (index: number, value: string) => {
-    const updated = [...newVars];
-    updated[index].value = value;
-    setNewVars(updated);
+    setEnvVars([
+      ...envVars,
+      { key: "", value: "", isNew: true, isModified: false, isDeleted: false },
+    ]);
   };
 
   const handleDelete = (index: number) => {
-    setEnvVars(envVars.filter((_, i) => i !== index));
+    const updated = [...envVars];
+    if (updated[index].isNew) {
+      // If it's a new var that hasn't been saved, just remove it
+      setEnvVars(envVars.filter((_, i) => i !== index));
+    } else {
+      // Mark existing var for deletion
+      updated[index].isDeleted = true;
+      setEnvVars(updated);
+    }
   };
 
   const handleUpdateKey = (index: number, newKey: string) => {
     const updated = [...envVars];
     updated[index].key = newKey;
+    updated[index].isModified = true;
     setEnvVars(updated);
   };
 
   const handleUpdateValue = (index: number, newValue: string) => {
     const updated = [...envVars];
     updated[index].value = newValue;
+    updated[index].isModified = true;
     setEnvVars(updated);
   };
 
-  if (project === undefined) {
+  if (existingVars === undefined) {
     // Loading state
     return (
-      <div className="p-4 max-w-3xl mx-auto space-y-6">
-        <div className="space-y-4">
-          <div className="h-8 w-48 bg-muted animate-pulse rounded" />
-          <div className="h-4 w-full bg-muted animate-pulse rounded" />
-        </div>
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <div className="h-6 w-48 bg-muted animate-pulse rounded" />
+            <div className="h-4 w-full bg-muted animate-pulse rounded" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="h-10 w-full bg-muted animate-pulse rounded" />
+              <div className="h-10 w-full bg-muted animate-pulse rounded" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
-  if (project === null) {
-    // Project not found
-    return null;
-  }
+  const visibleVars = envVars.filter((v) => !v.isDeleted);
+  const hasChanges = envVars.some(
+    (v) => v.isNew || v.isModified || v.isDeleted,
+  );
 
   return (
     <div className="space-y-6">
@@ -124,15 +261,24 @@ export function EnvironmentVariablesPage() {
         <CardHeader>
           <CardTitle>Environment Variables</CardTitle>
           <CardDescription>
-            Manage environment variables for your project. These will be
-            injected into your development environment.
+            Manage environment variables for your project. These are securely
+            encrypted and injected into your development environment.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* Pro tip */}
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription className="text-sm">
+              Paste your .env file contents to automatically import all
+              variables
+            </AlertDescription>
+          </Alert>
+
           {/* List of environment variables */}
           <div className="space-y-2">
-            {envVars.length === 0 && newVars.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
+            {visibleVars.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
                 <h3 className="text-sm font-medium mb-1">
                   No environment variables
                 </h3>
@@ -142,65 +288,57 @@ export function EnvironmentVariablesPage() {
               </div>
             ) : (
               <>
-                {/* Existing variables */}
-                {envVars.map((envVar, index) => (
-                  <div
-                    key={`existing-${index}`}
-                    className="flex items-center gap-2"
-                  >
-                    <Input
-                      value={envVar.key}
-                      onChange={(e) => handleUpdateKey(index, e.target.value)}
-                      placeholder="Key"
-                      className="flex-1 font-mono text-sm"
-                    />
-                    <Input
-                      value={envVar.value}
-                      onChange={(e) => handleUpdateValue(index, e.target.value)}
-                      placeholder="Value"
-                      type="password"
-                      className="flex-1 font-mono text-sm"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(index)}
+                {visibleVars.map((envVar, index) => {
+                  const actualIndex = envVars.indexOf(envVar);
+                  return (
+                    <div
+                      key={envVar.id || `new-${actualIndex}`}
+                      className="flex items-center gap-2"
                     >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-
-                {/* New variables being added */}
-                {newVars.map((newVar, index) => (
-                  <div key={`new-${index}`} className="flex items-center gap-2">
-                    <Input
-                      placeholder="Key"
-                      value={newVar.key}
-                      onChange={(e) =>
-                        handleUpdateNewKey(index, e.target.value)
-                      }
-                      className="flex-1 font-mono text-sm"
-                      autoFocus={index === newVars.length - 1}
-                    />
-                    <Input
-                      placeholder="Value"
-                      type="password"
-                      value={newVar.value}
-                      onChange={(e) =>
-                        handleUpdateNewValue(index, e.target.value)
-                      }
-                      className="flex-1 font-mono text-sm"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleRemoveNew(index)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
+                      <Input
+                        value={envVar.key}
+                        onChange={(e) =>
+                          handleUpdateKey(actualIndex, e.target.value)
+                        }
+                        onPaste={(e) => handlePaste(e, actualIndex)}
+                        placeholder="KEY_NAME"
+                        className="flex-1 font-mono text-sm"
+                        disabled={!envVar.isNew} // Can't change key of existing vars
+                      />
+                      <Input
+                        value={
+                          envVar.value ||
+                          (!envVar.isNew ? "••••••••••••••••" : "")
+                        }
+                        onChange={(e) =>
+                          handleUpdateValue(actualIndex, e.target.value)
+                        }
+                        onPaste={(e) => handlePaste(e, actualIndex)}
+                        onFocus={(e) => {
+                          // Clear placeholder dots when focusing existing var
+                          if (
+                            !envVar.isNew &&
+                            e.target.value === "••••••••••••••••"
+                          ) {
+                            handleUpdateValue(actualIndex, "");
+                          }
+                        }}
+                        placeholder={
+                          envVar.isNew ? "Value" : "Enter new value to update"
+                        }
+                        type="password"
+                        className="flex-1 font-mono text-sm"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(actualIndex)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
               </>
             )}
           </div>
@@ -209,9 +347,13 @@ export function EnvironmentVariablesPage() {
           <div className="flex items-center justify-between pt-4 border-t">
             <Button onClick={handleAddNew} variant="outline" size="sm">
               <Plus className="h-4 w-4 mr-2" />
-              Add
+              Add Variable
             </Button>
-            <Button onClick={handleSave} loading={isSaving} disabled={isSaving}>
+            <Button
+              onClick={handleSave}
+              disabled={!hasChanges || isSaving}
+              loading={isSaving}
+            >
               Save
             </Button>
           </div>

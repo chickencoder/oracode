@@ -52,14 +52,6 @@ export const getProjectById = query({
         devCommand: v.string(),
         port: v.number(),
       }),
-      environmentVariables: v.optional(
-        v.array(
-          v.object({
-            key: v.string(),
-            value: v.string(),
-          })
-        )
-      ),
       createdAt: v.number(),
     }),
     v.null(),
@@ -90,7 +82,6 @@ export const getProjectById = query({
       name: project.name,
       description: project.description,
       settings: project.settings,
-      environmentVariables: project.environmentVariables,
       createdAt: project.createdAt,
     };
   },
@@ -110,16 +101,8 @@ export const getProjects = query({
         devCommand: v.string(),
         port: v.number(),
       }),
-      environmentVariables: v.optional(
-        v.array(
-          v.object({
-            key: v.string(),
-            value: v.string(),
-          })
-        )
-      ),
       createdAt: v.number(),
-    })
+    }),
   ),
   handler: async (ctx) => {
     // Get orgId from authenticated user
@@ -142,7 +125,6 @@ export const getProjects = query({
       name: project.name,
       description: project.description,
       settings: project.settings,
-      environmentVariables: project.environmentVariables,
       createdAt: project.createdAt,
     }));
   },
@@ -189,45 +171,10 @@ export const updateProject = mutation({
   },
 });
 
-// Update environment variables for a project
-export const updateEnvironmentVariables = mutation({
-  args: {
-    projectId: v.id("projects"),
-    environmentVariables: v.array(
-      v.object({
-        key: v.string(),
-        value: v.string(),
-      })
-    ),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    // Get orgId from authenticated user
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity?.orgId || typeof identity.orgId !== "string") {
-      throw new Error("User must be authenticated with an organization");
-    }
-    const orgId = identity.orgId;
+// Note: Environment variables are now managed through projectEnvironmentVariables.ts
+// This mutation has been removed as env vars are stored separately in the secrets table
 
-    // Get the project and verify ownership
-    const project = await ctx.db.get(args.projectId);
-    if (!project) {
-      throw new Error("Project not found");
-    }
-    if (project.orgId !== orgId) {
-      throw new Error("Not authorized to update this project");
-    }
-
-    // Update the environment variables
-    await ctx.db.patch(args.projectId, {
-      environmentVariables: args.environmentVariables,
-    });
-
-    return null;
-  },
-});
-
-// Delete a project and all associated sessions
+// Delete a project and all associated branches
 export const deleteProject = mutation({
   args: {
     projectId: v.id("projects"),
@@ -250,25 +197,25 @@ export const deleteProject = mutation({
       throw new Error("Not authorized to delete this project");
     }
 
-    // Delete all sessions associated with this project
-    const sessions = await ctx.db
-      .query("sessions")
+    // Delete all branches associated with this project
+    const branches = await ctx.db
+      .query("branches")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
       .collect();
 
-    for (const session of sessions) {
-      // Delete all messages for each session
+    for (const branch of branches) {
+      // Delete all messages for each branch
       const messages = await ctx.db
         .query("messages")
-        .withIndex("by_session", (q) => q.eq("sessionId", session._id))
+        .withIndex("by_branch", (q) => q.eq("branchId", branch._id))
         .collect();
 
       for (const message of messages) {
         await ctx.db.delete(message._id);
       }
 
-      // Delete the session
-      await ctx.db.delete(session._id);
+      // Delete the branch
+      await ctx.db.delete(branch._id);
     }
 
     // Delete the project

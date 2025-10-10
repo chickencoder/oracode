@@ -28,8 +28,8 @@ interface DashboardBreadcrumbsProps {
   onProjectSelect?: (projectId: Id<"projects">) => void;
   isProjectsLoading?: boolean;
 
-  // Session level (optional)
-  sessionId?: Id<"sessions">;
+  // Branch level (optional)
+  branchId?: Id<"branches">;
 }
 
 export function DashboardBreadcrumbs({
@@ -41,7 +41,7 @@ export function DashboardBreadcrumbs({
   currentProjectId,
   onProjectSelect,
   isProjectsLoading,
-  sessionId,
+  branchId,
 }: DashboardBreadcrumbsProps) {
   // Memoize the current org lookup to avoid repeated finds
   const currentOrg = useMemo(
@@ -132,12 +132,12 @@ export function DashboardBreadcrumbs({
           </>
         )}
 
-        {/* Session level - plain text (current page) */}
-        {sessionId && (
+        {/* Branch level - plain text (current page) */}
+        {branchId && (
           <>
             <BreadcrumbSeparator>/</BreadcrumbSeparator>
             <BreadcrumbItem>
-              <BreadcrumbPage>Session</BreadcrumbPage>
+              <BreadcrumbPage>Branch</BreadcrumbPage>
             </BreadcrumbItem>
           </>
         )}

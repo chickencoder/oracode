@@ -10,7 +10,7 @@ import type { Tab } from "@/types/dashboard";
 
 const tabs: Tab[] = [
   {
-    label: "Sessions",
+    label: "Branches",
     href: "",
   },
   {
@@ -21,7 +21,10 @@ const tabs: Tab[] = [
 
 export function ProjectLayout() {
   const navigate = useNavigate();
-  const { orgSlug, projectId } = useParams<{ orgSlug: string; projectId: string }>();
+  const { orgSlug, projectId } = useParams<{
+    orgSlug: string;
+    projectId: string;
+  }>();
   const { orgs, isOrgsLoaded, handleOrgSelect } = useOrgSelection();
 
   const project = useQuery(

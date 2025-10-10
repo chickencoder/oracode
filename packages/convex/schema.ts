@@ -11,14 +11,15 @@ export default defineSchema({
     ),
     parts: v.array(v.any()),
     metadata: v.optional(v.any()),
-    sessionId: v.id("sessions"),
+    branchId: v.id("branches"),
     userId: v.string(),
     orgId: v.string(),
   })
-    .index("by_session", ["sessionId"])
-    .index("by_org_and_session", ["orgId", "sessionId"]),
-  sessions: defineTable({
+    .index("by_branch", ["branchId"])
+    .index("by_org_and_branch", ["orgId", "branchId"]),
+  branches: defineTable({
     projectId: v.id("projects"),
+    branchName: v.string(),
     agentSessionId: v.optional(v.string()),
     createdAt: v.number(),
     // Sandbox fields (1:1 relationship)
@@ -88,14 +89,39 @@ export default defineSchema({
       devCommand: v.string(), // Command to run dev server
       port: v.number(), // Port the dev server runs on
     }),
-    environmentVariables: v.optional(
-      v.array(
-        v.object({
-          key: v.string(), // Environment variable name
-          value: v.string(), // Environment variable value
-        })
-      )
-    ), // Environment variables for the project
     createdAt: v.number(),
   }).index("by_org", ["orgId"]),
+
+  // Encrypted secret storage (pure storage, no business logic)
+  secrets: defineTable({
+    encryptedValue: v.string(), // Encrypted secret data
+    encryptionMetadata: v.object({
+      iv: v.string(), // Initialization vector (base64)
+      algorithm: v.string(), // e.g., "AES-256-GCM"
+      version: v.number(), // Encryption scheme version
+    }),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.string(), // User ID who created the secret
+  }),
+
+  // Organization-level settings and API keys
+  organizationSettings: defineTable({
+    orgId: v.string(), // Link to Clerk organization
+    anthropicApiKey: v.optional(v.id("secrets")), // Reference to encrypted Anthropic API key
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_org", ["orgId"]),
+
+  // Project environment variables (references secrets)
+  projectEnvironmentVariables: defineTable({
+    projectId: v.id("projects"), // Link to project
+    key: v.string(), // Environment variable name (e.g., "DATABASE_URL", "PORT")
+    secretId: v.id("secrets"), // Reference to encrypted secret value
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.string(), // User ID who created the variable
+  })
+    .index("by_project", ["projectId"])
+    .index("by_project_and_key", ["projectId", "key"]), // Ensure unique keys per project
 });

@@ -9,8 +9,10 @@ export interface CommandResult {
 export interface WorkerOptions {
   sandboxId: string;
   convexUrl: string;
-  sessionId: string;
+  branchId: string;
   clerkToken: string;
+  anthropicApiKey?: string; // Decrypted Anthropic API key from org settings
+  projectEnvVars?: Record<string, string>; // Decrypted project environment variables
 }
 
 export interface ServiceResult {

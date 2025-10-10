@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
+import { useOrganization } from "@clerk/clerk-react";
 import { api } from "@repo/convex/_generated/api";
 import type { Id } from "@repo/convex/_generated/dataModel";
 import {
@@ -35,14 +36,20 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 export function GeneralSettingsPage() {
-  const { orgSlug, projectId } = useParams<{ orgSlug: string; projectId: string }>();
+  const { orgSlug, projectId } = useParams<{
+    orgSlug: string;
+    projectId: string;
+  }>();
   const navigate = useNavigate();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const { organization } = useOrganization();
 
   const updateProject = useMutation(api.projects.updateProject);
   const project = useQuery(
     api.projects.getProjectById,
-    projectId ? { projectId: projectId as Id<"projects"> } : "skip",
+    projectId && organization?.id
+      ? { projectId: projectId as Id<"projects"> }
+      : "skip",
   );
 
   const form = useForm<FormValues>({
@@ -163,13 +170,10 @@ export function GeneralSettingsPage() {
         <div>
           <CardTitle>Danger Zone</CardTitle>
           <CardDescription>
-            Permanently delete this project and all associated sessions.
+            Permanently delete this project and all associated branches.
           </CardDescription>
         </div>
-        <Button
-          variant="destructive"
-          onClick={() => setDeleteDialogOpen(true)}
-        >
+        <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
           Delete project
         </Button>
       </Card>

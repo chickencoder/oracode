@@ -36,18 +36,18 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { toast } from "sonner";
 
 interface ChatPanelProps {
-  sessionId: Id<"sessions">;
+  branchId: Id<"branches">;
   isSandboxReady: boolean;
 }
 
-export function ChatPanel({ sessionId, isSandboxReady }: ChatPanelProps) {
+export function ChatPanel({ branchId, isSandboxReady }: ChatPanelProps) {
   const [model, setModel] = useState<string>(MODELS[0].id);
 
   const { organization, isLoaded } = useOrganization();
 
   const messages = useQuery(
-    api.messages.getMessagesBySessionId,
-    organization && isLoaded ? { sessionId } : "skip",
+    api.messages.getMessagesByBranchId,
+    organization && isLoaded ? { branchId } : "skip",
   );
   const insertUserMessage = useMutation(api.messages.insertUserMessage);
 
@@ -92,7 +92,7 @@ export function ChatPanel({ sessionId, isSandboxReady }: ChatPanelProps) {
         id: messageId,
         parts: [{ type: "text", text: messageText }],
         metadata: {},
-        sessionId: sessionId,
+        branchId: branchId,
       });
     } catch (error) {
       console.error("Failed to send message:", error);

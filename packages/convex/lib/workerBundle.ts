@@ -8,15 +8,6 @@ interface WorkerBundle {
   size: number;
 }
 
-interface WorkerEnvironment {
-  CONVEX_URL: string;
-  SANDBOX_ID: string;
-  SESSION_ID: string;
-  NODE_ENV: string;
-  ANTHROPIC_API_KEY: string;
-  CLERK_TOKEN: string;
-}
-
 export function getBundle(): WorkerBundle {
   return {
     content: WORKER_BUNDLE_CONTENT,
@@ -28,25 +19,37 @@ export function getBundle(): WorkerBundle {
 export function getWorkerEnv(options: {
   sandboxId: string;
   convexUrl: string;
-  sessionId: string;
+  branchId: string;
   clerkToken: string;
-}): WorkerEnvironment {
-  return {
+  anthropicApiKey?: string;
+  projectEnvVars?: Record<string, string>;
+}): Record<string, string> {
+  // Base environment variables for the worker
+  const baseEnv: Record<string, string> = {
     CONVEX_URL: options.convexUrl,
     SANDBOX_ID: options.sandboxId,
-    SESSION_ID: options.sessionId,
+    BRANCH_ID: options.branchId,
     NODE_ENV: "production",
-    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "",
+    ANTHROPIC_API_KEY: options.anthropicApiKey || process.env.ANTHROPIC_API_KEY || "",
     CLERK_TOKEN: options.clerkToken,
   };
+
+  // Merge in project-specific environment variables
+  if (options.projectEnvVars) {
+    Object.assign(baseEnv, options.projectEnvVars);
+  }
+
+  return baseEnv;
 }
 
-export function getStartCommand(envVars: WorkerEnvironment): string {
+export function getStartCommand(envVars: Record<string, string>): string {
   const envExports = Object.entries(envVars)
     .map(([key, value]) => `export ${key}="${value}"`)
     .join(" && ");
 
-  return `${envExports} && export NODE_PATH=$(npm root -g):$NODE_PATH && (nohup node /tmp/sandbox-worker.js >/tmp/worker.log 2>&1 & echo $! > /tmp/worker.pid && echo "Worker started with PID $(cat /tmp/worker.pid)")`;
+  // Run worker directly in session (no nohup, no redirection)
+  // This allows Daytona session to capture stdout/stderr
+  return `${envExports} && export NODE_PATH=$(npm root -g):$NODE_PATH && node /tmp/sandbox-worker.js`;
 }
 
 export const STOP_COMMAND =

@@ -48,3 +48,42 @@ export interface UserInfo {
   name: string | null;
   avatarUrl: string | null;
 }
+
+// Secret management types
+export interface EncryptionMetadata {
+  iv: string; // Initialization vector (base64)
+  algorithm: string; // e.g., "AES-256-GCM"
+  version: number; // Encryption scheme version
+}
+
+export interface EncryptedData {
+  encryptedValue: string; // base64 encoded
+  encryptionMetadata: EncryptionMetadata;
+}
+
+export interface Secret {
+  _id: string;
+  encryptedValue: string;
+  encryptionMetadata: EncryptionMetadata;
+  createdAt: number;
+  updatedAt: number;
+  createdBy: string;
+}
+
+export interface OrganizationSettings {
+  _id: string;
+  orgId: string;
+  anthropicApiKey?: string; // Reference to secret ID
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ProjectEnvironmentVariable {
+  _id: string;
+  projectId: string;
+  key: string;
+  secretId: string; // Reference to secret
+  createdAt: number;
+  updatedAt: number;
+  createdBy: string;
+}

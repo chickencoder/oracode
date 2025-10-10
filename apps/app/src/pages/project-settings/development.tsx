@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
+import { useOrganization } from "@clerk/clerk-react";
 import { api } from "@repo/convex/_generated/api";
 import type { Id } from "@repo/convex/_generated/dataModel";
 import {
@@ -35,11 +36,12 @@ type FormValues = z.infer<typeof formSchema>;
 
 export function DevelopmentSettingsPage() {
   const { projectId } = useParams<{ projectId: string }>();
+  const { organization } = useOrganization();
 
   const updateProject = useMutation(api.projects.updateProject);
   const project = useQuery(
     api.projects.getProjectById,
-    projectId ? { projectId: projectId as Id<"projects"> } : "skip",
+    projectId && organization?.id ? { projectId: projectId as Id<"projects"> } : "skip",
   );
 
   const form = useForm<FormValues>({

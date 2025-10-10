@@ -19,13 +19,13 @@ import { ProjectLayout } from "./layouts/project-layout";
 import { ProjectSettingsLayout } from "./layouts/project-settings-layout";
 import { OrgSettingsLayout } from "./layouts/org-settings-layout";
 import { ProjectsPage } from "./pages/projects";
-import { ProjectSessionsPage } from "./pages/project-sessions";
+import { ProjectBranchesPage } from "./pages/project-branches";
 import { GeneralSettingsPage } from "./pages/project-settings/index";
 import { DevelopmentSettingsPage } from "./pages/project-settings/development";
 import { EnvironmentVariablesPage } from "./pages/project-settings/environment";
 import { OrgGeneralSettingsPage } from "./pages/org-settings/index";
 import { ClaudeCodeSettingsPage } from "./pages/org-settings/claude-code";
-import { SessionPage } from "./pages/session";
+import { BranchPage } from "./pages/branch";
 
 // Import your Publishable Key
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
@@ -57,7 +57,7 @@ createRoot(document.getElementById("root")!).render(
                   </Route>
                 </Route>
                 <Route path="/:orgSlug/project/:projectId" element={<ProjectLayout />}>
-                  <Route index element={<ProjectSessionsPage />} />
+                  <Route index element={<ProjectBranchesPage />} />
                   <Route path="settings" element={<ProjectSettingsLayout />}>
                     <Route index element={<GeneralSettingsPage />} />
                     <Route path="development" element={<DevelopmentSettingsPage />} />
@@ -65,8 +65,8 @@ createRoot(document.getElementById("root")!).render(
                   </Route>
                 </Route>
                 <Route
-                  path="/:orgSlug/sessions/:sessionId"
-                  element={<SessionPage />}
+                  path="/:orgSlug/branches/:branchId"
+                  element={<BranchPage />}
                 />
               </Routes>
             </ConvexProviderWithClerk>

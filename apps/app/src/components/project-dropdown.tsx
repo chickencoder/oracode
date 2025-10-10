@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ChevronsUpDownIcon, FolderIcon } from "lucide-react";
+import { ChevronsUpDownIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -83,15 +83,7 @@ export function ProjectDropdown({
                   value={project._id}
                   onSelect={handleSelect}
                 >
-                  <FolderIcon className="mr-2 h-4 w-4" />
-                  <div className="flex flex-col">
-                    <span>{project.name}</span>
-                    {project.description && (
-                      <span className="text-xs text-muted-foreground truncate">
-                        {project.description}
-                      </span>
-                    )}
-                  </div>
+                  <span>{project.name}</span>
                 </CommandItem>
               ))}
             </CommandGroup>
