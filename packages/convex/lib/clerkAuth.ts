@@ -10,6 +10,7 @@ import { createClerkClient } from "@clerk/backend";
  */
 export async function generateClerkTokenForConvex(
   userId: string,
+  orgId?: string,
 ): Promise<string> {
   const clerkSecretKey = process.env.CLERK_SECRET_KEY;
 
@@ -29,8 +30,16 @@ export async function generateClerkTokenForConvex(
     throw new Error("No active Clerk session found for user");
   }
 
-  // Use the first active session to generate a JWT token
-  const sessionId = sessionsResponse.data[0].id;
+  // Find a session with the matching organization, or use the first active session
+  let sessionId: string;
+  if (orgId) {
+    const orgSession = sessionsResponse.data.find(
+      (session) => session.lastActiveOrganizationId === orgId
+    );
+    sessionId = orgSession?.id || sessionsResponse.data[0].id;
+  } else {
+    sessionId = sessionsResponse.data[0].id;
+  }
 
   // Generate a JWT token from the session using the "convex" template
   // The template name must match the JWT template configured in Clerk Dashboard

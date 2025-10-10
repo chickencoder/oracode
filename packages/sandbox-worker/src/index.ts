@@ -19,8 +19,8 @@ if (!process.env.CONVEX_URL) {
   process.exit(1);
 }
 
-if (!process.env.SESSION_ID) {
-  logger.error("SESSION_ID environment variable is required");
+if (!process.env.BRANCH_ID) {
+  logger.error("BRANCH_ID environment variable is required");
   process.exit(1);
 }
 
@@ -35,7 +35,7 @@ logger.info("Starting sandbox worker", {
   cwd: process.cwd(),
   convexUrl: process.env.CONVEX_URL?.substring(0, 50) + "...",
   sandboxId: process.env.SANDBOX_ID,
-  sessionId: process.env.SESSION_ID,
+  branchId: process.env.BRANCH_ID,
   hasClerkToken: !!process.env.CLERK_TOKEN,
 });
 
@@ -49,7 +49,7 @@ client.setAuth(() => {
 });
 
 const sandboxId = process.env.SANDBOX_ID || `sandbox-${Date.now()}`;
-const sessionId = process.env.SESSION_ID! as Id<"sessions">;
+const branchId = process.env.BRANCH_ID! as Id<"branches">;
 
 async function* generateUserMessages() {
   while (true) {
@@ -99,22 +99,22 @@ async function processStreamingSession() {
   try {
     let resumeSessionId: string | null = null;
     try {
-      const currentSession = await client.query(api.sessions.getSessionById, {
-        sessionId: sessionId,
+      const currentBranch = await client.query(api.branches.getBranchById, {
+        branchId: branchId,
       });
 
-      if (currentSession?.agentSessionId) {
+      if (currentBranch?.agentSessionId) {
         const existingMessages = await client.query(
-          api.sessions.getMessagesBySessionId,
-          { sessionId: sessionId },
+          api.branches.getMessagesByBranchId,
+          { branchId: branchId },
         );
 
         if (existingMessages.length > 0) {
-          resumeSessionId = currentSession.agentSessionId;
+          resumeSessionId = currentBranch.agentSessionId;
         }
       }
     } catch (error) {
-      // No previous session found
+      // No previous branch found
     }
 
     const queryOptions: Options = {
@@ -124,6 +124,7 @@ async function processStreamingSession() {
       systemPrompt: { type: "preset", preset: "claude_code" },
       settingSources: [],
       includePartialMessages: true,
+      pathToClaudeCodeExecutable: "/usr/local/bin/claude",
       ...(resumeSessionId && { resume: resumeSessionId }),
     };
 
@@ -252,13 +253,13 @@ async function processStreamingSession() {
           streamingState.currentSessionId = message.session_id;
 
           try {
-            await client.mutation(api.sessions.updateSessionWithAgentId, {
-              sessionId: sessionId,
+            await client.mutation(api.branches.updateBranchWithAgentId, {
+              branchId: branchId,
               agentSessionId: message.session_id,
             });
           } catch (error) {
             logger.error(
-              "Failed to update session with agent ID",
+              "Failed to update branch with agent ID",
               error as Error,
             );
           }
@@ -288,7 +289,7 @@ async function processStreamingSession() {
           processingTime: Date.now(),
           isCompleted: true,
         },
-        sessionId: sessionId,
+        branchId: branchId,
       });
     } catch (insertError) {
       logger.error("Failed to insert error message", insertError as Error);
@@ -315,7 +316,7 @@ async function updateAssistantMessage(
         userMessageId,
         isCompleted,
       },
-      sessionId: sessionId as any,
+      branchId: branchId as any,
     });
   } catch (error) {
     logger.error("Failed to update assistant message", error as Error);
@@ -367,7 +368,7 @@ const streamingState: StreamingState = {
 
 client.onUpdate(
   api.messages.getLastUserMessage,
-  { sessionId },
+  { branchId },
   (userMessage) => {
     if (userMessage) {
       if (!streamingState.hasInitialized) {

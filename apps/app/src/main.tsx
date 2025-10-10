@@ -15,9 +15,17 @@ import { SignInPage } from "./pages/sign-in";
 import { OnboardingPage } from "./pages/onboarding";
 import { NewAccountPage } from "./pages/new-account";
 import { DashboardLayout } from "./layouts/dashboard-layout";
+import { ProjectLayout } from "./layouts/project-layout";
+import { ProjectSettingsLayout } from "./layouts/project-settings-layout";
+import { OrgSettingsLayout } from "./layouts/org-settings-layout";
 import { ProjectsPage } from "./pages/projects";
-import { SettingsPage } from "./pages/settings";
-import { SessionPage } from "./pages/session";
+import { ProjectBranchesPage } from "./pages/project-branches";
+import { GeneralSettingsPage } from "./pages/project-settings/index";
+import { DevelopmentSettingsPage } from "./pages/project-settings/sandbox";
+import { EnvironmentVariablesPage } from "./pages/project-settings/environment";
+import { OrgGeneralSettingsPage } from "./pages/org-settings/index";
+import { ClaudeCodeSettingsPage } from "./pages/org-settings/claude-code";
+import { BranchPage } from "./pages/branch";
 
 // Import your Publishable Key
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
@@ -43,11 +51,22 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/new-account" element={<NewAccountPage />} />
                 <Route path="/:orgSlug" element={<DashboardLayout />}>
                   <Route index element={<ProjectsPage />} />
-                  <Route path="settings" element={<SettingsPage />} />
+                  <Route path="settings" element={<OrgSettingsLayout />}>
+                    <Route index element={<OrgGeneralSettingsPage />} />
+                    <Route path="claude-code" element={<ClaudeCodeSettingsPage />} />
+                  </Route>
+                </Route>
+                <Route path="/:orgSlug/project/:projectId" element={<ProjectLayout />}>
+                  <Route index element={<ProjectBranchesPage />} />
+                  <Route path="settings" element={<ProjectSettingsLayout />}>
+                    <Route index element={<GeneralSettingsPage />} />
+                    <Route path="sandbox" element={<DevelopmentSettingsPage />} />
+                    <Route path="environment" element={<EnvironmentVariablesPage />} />
+                  </Route>
                 </Route>
                 <Route
-                  path="/:orgSlug/sessions/:sessionId"
-                  element={<SessionPage />}
+                  path="/:orgSlug/branches/:branchId"
+                  element={<BranchPage />}
                 />
               </Routes>
             </ConvexProviderWithClerk>

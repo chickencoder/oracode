@@ -1,69 +1,59 @@
-import { useOrganizationList, useOrganization, UserButton } from "@clerk/clerk-react";
-import { NavLink, useNavigate, useParams } from "react-router";
-import { OrgDropdown } from "./org-dropdown";
+import { UserButton } from "@clerk/clerk-react";
+import { NavLink } from "react-router";
+import { DashboardBreadcrumbs } from "./dashboard-breadcrumbs";
 import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
+import type { Id } from "@repo/convex/_generated/dataModel";
+import type { Org, Project, Tab } from "@/types/dashboard";
 
-const tabs = [
-  {
-    label: "Projects",
-    href: "",
-  },
-  {
-    label: "Settings",
-    href: "/settings",
-  },
-];
+interface DashboardHeaderProps {
+  // Tab configuration
+  tabs: Tab[];
+  basePath: string;
 
-export function DashboardHeader() {
-  const navigate = useNavigate();
-  const { orgSlug } = useParams<{ orgSlug: string }>();
-  const { organization: activeOrg } = useOrganization();
-  const { userMemberships, isLoaded, setActive } = useOrganizationList({
-    userMemberships: {
-      infinite: true,
-    },
-  });
+  // Breadcrumb configuration
+  orgs: Org[];
+  currentOrgSlug?: string;
+  onOrgSelect: (orgSlug: string) => void;
+  isOrgsLoading?: boolean;
 
-  const orgs =
-    userMemberships.data?.map((membership) => ({
-      slug: membership.organization.slug!,
-      name: membership.organization.name,
-    })) ?? [];
+  // Project breadcrumb (optional)
+  projects?: Project[];
+  currentProjectId?: Id<"projects">;
+  onProjectSelect?: (projectId: Id<"projects">) => void;
+  isProjectsLoading?: boolean;
 
-  // If the active org is not in the list yet (e.g., just created), add it as fallback
-  if (activeOrg && activeOrg.slug && !orgs.find(org => org.slug === activeOrg.slug)) {
-    orgs.unshift({
-      slug: activeOrg.slug,
-      name: activeOrg.name,
-    });
-  }
+  // Branch breadcrumb (optional)
+  branchId?: Id<"branches">;
+}
 
-  const handleOrgSelect = async (newOrgSlug: string) => {
-    if (newOrgSlug) {
-      // Find the org by slug to get its ID
-      const selectedOrg = userMemberships.data?.find(
-        (m) => m.organization.slug === newOrgSlug
-      );
-
-      if (selectedOrg) {
-        // Set as active organization before navigating
-        await setActive?.({ organization: selectedOrg.organization.id });
-      }
-
-      navigate(`/${newOrgSlug}`);
-    }
-  };
-
+export function DashboardHeader({
+  tabs,
+  basePath,
+  orgs,
+  currentOrgSlug,
+  onOrgSelect,
+  isOrgsLoading,
+  projects,
+  currentProjectId,
+  onProjectSelect,
+  isProjectsLoading,
+  branchId,
+}: DashboardHeaderProps) {
   return (
-    <header className="bg-card mb-4">
+    <header className="bg-card mb-4 relative">
       <div className="border-b">
         <div className="flex items-center justify-between p-4">
-          <OrgDropdown
+          <DashboardBreadcrumbs
             orgs={orgs}
-            value={orgSlug}
-            onSelect={handleOrgSelect}
-            isLoading={!isLoaded}
+            currentOrgSlug={currentOrgSlug}
+            onOrgSelect={onOrgSelect}
+            isOrgsLoading={isOrgsLoading}
+            projects={projects}
+            currentProjectId={currentProjectId}
+            onProjectSelect={onProjectSelect}
+            isProjectsLoading={isProjectsLoading}
+            branchId={branchId}
           />
           <div className="flex items-center gap-4">
             <span className="rounded-full border size-8 flex items-center justify-center">
@@ -72,10 +62,10 @@ export function DashboardHeader() {
           </div>
         </div>
       </div>
-      <nav className="border-b">
+      <nav className="border-b sticky top-0">
         <div className="flex items-center px-4 gap-1">
           {tabs.map((tab) => {
-            const fullPath = orgSlug ? `/${orgSlug}${tab.href}` : tab.href;
+            const fullPath = `${basePath}${tab.href}`;
             return (
               <NavLink
                 key={tab.href}
@@ -88,6 +78,7 @@ export function DashboardHeader() {
                   )
                 }
                 to={fullPath}
+                end={tab.href === ""}
               >
                 <Button variant="ghost" asChild>
                   <span>{tab.label}</span>

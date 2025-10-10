@@ -107,7 +107,7 @@ export function NewProjectDialog({ children }: NewProjectDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        {children || <Button>New project</Button>}
+        {children || <Button>New Project</Button>}
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>

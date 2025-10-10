@@ -14,10 +14,10 @@ import { injectWorkerIntoSandbox } from "./lib/sandbox";
 import { generateClerkTokenForConvex } from "./lib/clerkAuth";
 import { buildOracodeImage } from "./lib/daytonaImage";
 
-// Action to start a sandbox for a session
+// Action to start a sandbox for a branch
 export const startSandbox = action({
   args: {
-    sessionId: v.id("sessions"),
+    branchId: v.id("branches"),
   },
   returns: v.object({
     sandboxId: v.string(),
@@ -26,13 +26,13 @@ export const startSandbox = action({
   }),
   handler: async (
     ctx,
-    args: { sessionId: Id<"sessions"> },
+    args: { branchId: Id<"branches"> },
   ): Promise<{ sandboxId: string; domain: string; status: string }> => {
     console.log("=== startSandbox action called ===");
-    console.log("Session ID:", args.sessionId);
+    console.log("Branch ID:", args.branchId);
 
     try {
-      // Step 1: Get auth and verify session ownership
+      // Step 1: Get auth and verify branch ownership
       const identity = await ctx.auth.getUserIdentity();
       if (!identity?.orgId || typeof identity.orgId !== "string") {
         throw new Error("User must be authenticated with an organization");
@@ -44,36 +44,37 @@ export const startSandbox = action({
       if (!clerkUserId) {
         throw new Error("No Clerk user ID found in identity");
       }
-      const clerkToken = await generateClerkTokenForConvex(clerkUserId);
+      const clerkToken = await generateClerkTokenForConvex(clerkUserId, identity.orgId);
 
-      // Step 2: Check for existing sandbox in session
-      const session = await ctx.runQuery(api.sessions.getSessionById, {
-        sessionId: args.sessionId,
+      // Step 2: Check for existing sandbox in branch
+      const branch = await ctx.runQuery(api.branches.getBranchById, {
+        branchId: args.branchId,
       });
-      if (!session) {
-        throw new Error("Session not found");
+      if (!branch) {
+        throw new Error("Branch not found");
       }
 
-      console.log("Session sandbox status:", session.sandboxStatus);
+      console.log("Branch sandbox status:", branch.sandboxStatus);
+      console.log("Branch name:", branch.branchName);
 
       // Step 3: Handle existing sandbox scenarios
-      if (session.sandboxStatus) {
+      if (branch.sandboxStatus) {
         // If already creating, return error to prevent duplicates
-        if (session.sandboxStatus === "creating") {
+        if (branch.sandboxStatus === "creating") {
           throw new Error(
-            "A sandbox is already being created for this session. Please wait.",
+            "A sandbox is already being created for this branch. Please wait.",
           );
         }
 
         // If ready and started, return existing
         if (
-          session.sandboxStatus === "ready" &&
-          session.sandboxState === "started"
+          branch.sandboxStatus === "ready" &&
+          branch.sandboxState === "started"
         ) {
           console.log("Returning existing ready sandbox");
           return {
-            sandboxId: session.sandboxId!,
-            domain: session.sandboxDomain!,
+            sandboxId: branch.sandboxId!,
+            domain: branch.sandboxDomain!,
             status: "ready",
           };
         }
@@ -83,24 +84,24 @@ export const startSandbox = action({
         );
       }
 
-      // Step 4: Initialize sandbox in session with "creating" status FIRST
+      // Step 4: Initialize sandbox in branch with "creating" status FIRST
       console.log("Initializing sandbox creation");
 
-      await ctx.runMutation(api.sessions.initSessionSandbox, {
-        sessionId: args.sessionId,
+      await ctx.runMutation(api.branches.initBranchSandbox, {
+        branchId: args.branchId,
       });
 
-      console.log("Session sandbox initialized");
+      console.log("Branch sandbox initialized");
 
       // Step 5: Update stage to "provisioning"
-      await ctx.runMutation(api.sessions.updateSessionSandboxStage, {
-        sessionId: args.sessionId,
+      await ctx.runMutation(api.branches.updateBranchSandboxStage, {
+        branchId: args.branchId,
         stage: "provisioning",
       });
 
       // Step 6: Get project and GitHub installation details
       const project = await ctx.runQuery(api.projects.getProjectById, {
-        projectId: session.projectId,
+        projectId: branch.projectId,
       });
       if (!project) {
         throw new Error("Project not found");
@@ -186,12 +187,12 @@ export const startSandbox = action({
       console.log("Auto-stop configured");
 
       // Step 11: Store sandboxId and state
-      await ctx.runMutation(api.sessions.updateSessionSandbox, {
-        sessionId: args.sessionId,
+      await ctx.runMutation(api.branches.updateBranchSandbox, {
+        branchId: args.branchId,
         sandboxId: sandboxId,
       });
-      await ctx.runMutation(api.sessions.updateSessionSandboxState, {
-        sessionId: args.sessionId,
+      await ctx.runMutation(api.branches.updateBranchSandboxState, {
+        branchId: args.branchId,
         state: "started",
       });
       console.log("Stored sandbox ID and state");
@@ -217,9 +218,22 @@ export const startSandbox = action({
 
       console.log("Repository cloned successfully");
 
+      // Step 12b: Checkout the git branch (create if doesn't exist)
+      console.log("Checking out git branch:", branch.branchName);
+      const checkoutResult = await sandbox.process.executeCommand(
+        `git checkout -B ${branch.branchName}`,
+        `${workDir}/project`,
+      );
+
+      if (checkoutResult.exitCode !== 0) {
+        console.warn("Failed to checkout branch, continuing with default:", checkoutResult.result);
+      } else {
+        console.log("Git branch checked out successfully");
+      }
+
       // Step 13: Update stage to "installing"
-      await ctx.runMutation(api.sessions.updateSessionSandboxStage, {
-        sessionId: args.sessionId,
+      await ctx.runMutation(api.branches.updateBranchSandboxStage, {
+        branchId: args.branchId,
         stage: "installing",
       });
 
@@ -227,7 +241,8 @@ export const startSandbox = action({
       // pnpm is pre-installed in the declarative image
       console.log("Running install command:", project.settings.installCommand);
       const installResult = await sandbox.process.executeCommand(
-        `cd ${workDir}/project && ${project.settings.installCommand}`,
+        project.settings.installCommand,
+        `${workDir}/project`, // Set working directory for the command
       );
 
       console.log("Install result:", {
@@ -243,8 +258,8 @@ export const startSandbox = action({
       console.log("Install command completed successfully");
 
       // Step 16: Update stage to "starting"
-      await ctx.runMutation(api.sessions.updateSessionSandboxStage, {
-        sessionId: args.sessionId,
+      await ctx.runMutation(api.branches.updateBranchSandboxStage, {
+        branchId: args.branchId,
         stage: "starting",
       });
 
@@ -272,8 +287,8 @@ export const startSandbox = action({
 
       // Store session ID in Convex for later monitoring
       if (devResult.cmdId) {
-        await ctx.runMutation(api.sessions.updateSessionDevServerSession, {
-          sessionId: args.sessionId,
+        await ctx.runMutation(api.branches.updateBranchDevServerSession, {
+          branchId: args.branchId,
           devSessionId: devSessionId,
           devCommandId: devResult.cmdId,
         });
@@ -305,26 +320,82 @@ export const startSandbox = action({
       console.log("Sandbox domain:", domain);
       console.log("Preview token:", previewToken ? "present" : "none");
 
-      // Store domain and token in session
-      await ctx.runMutation(api.sessions.updateSessionSandboxDomain, {
-        sessionId: args.sessionId,
+      // Store domain and token in branch
+      await ctx.runMutation(api.branches.updateBranchSandboxDomain, {
+        branchId: args.branchId,
         domain,
         previewToken,
       });
       console.log("Stored sandbox domain and token");
 
-      // Step 18: Inject sandbox worker
-      console.log("Injecting sandbox worker...");
-      const convexUrl = process.env.CONVEX_URL;
+      // Step 18: Fetch and decrypt secrets for worker
+      console.log("Fetching organization and project secrets...");
+      let anthropicApiKey: string | undefined;
+      let projectEnvVars: Record<string, string> | undefined;
 
+      try {
+        // Fetch org's Anthropic API key
+        const orgApiKey = await ctx.runAction(api.organizationSettings.getAnthropicApiKeyDecrypted, {
+          orgId: identity.orgId,
+        });
+        if (orgApiKey) {
+          anthropicApiKey = orgApiKey;
+          console.log("✓ Anthropic API key found for organization");
+        } else {
+          console.log("ℹ No Anthropic API key configured for organization");
+          // Fallback to Convex env var
+          if (process.env.ANTHROPIC_API_KEY) {
+            anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+            console.log("✓ Using Anthropic API key from Convex environment");
+          }
+        }
+
+        // Fetch project environment variables
+        const envVars = await ctx.runAction(api.projectEnvironmentVariables.getAllDecrypted, {
+          projectId: branch.projectId,
+        });
+        if (Object.keys(envVars).length > 0) {
+          projectEnvVars = envVars;
+          console.log(`✓ ${Object.keys(envVars).length} project environment variables loaded`);
+        } else {
+          console.log("ℹ No project environment variables configured");
+        }
+      } catch (secretError) {
+        console.warn("⚠️ Failed to load secrets, continuing without them:", secretError);
+        // Still try to use Convex env var as fallback
+        if (process.env.ANTHROPIC_API_KEY) {
+          anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+          console.log("✓ Using Anthropic API key from Convex environment (fallback)");
+        }
+      }
+
+      // Step 19: Install Claude Code CLI (required by Claude Agent SDK)
+      console.log("Installing Claude Code CLI...");
+      const claudeInstall = await sandbox.process.executeCommand(
+        "npm install -g @anthropic-ai/claude-code 2>&1",
+        `${workDir}/project`
+      );
+
+      if (claudeInstall.exitCode !== 0) {
+        console.warn("⚠️ Claude Code CLI installation failed:", claudeInstall.result);
+      } else {
+        console.log("✓ Claude Code CLI installed successfully");
+      }
+
+      // Step 20: Inject sandbox worker
+      console.log("Injecting sandbox worker...");
+
+      const convexUrl = process.env.CONVEX_URL;
       if (!convexUrl) {
         console.warn("⚠️ No CONVEX_URL found, skipping worker injection");
       } else {
         const workerResult = await injectWorkerIntoSandbox(sandbox, {
           sandboxId: sandboxId,
           convexUrl,
-          sessionId: args.sessionId,
+          branchId: args.branchId,
           clerkToken,
+          anthropicApiKey,
+          projectEnvVars,
         });
 
         if (!workerResult.success) {
@@ -337,18 +408,19 @@ export const startSandbox = action({
 
           // Store worker session IDs for monitoring
           if (workerResult.sessionId && workerResult.commandId) {
-            await ctx.runMutation(api.sessions.updateSessionWorkerSession, {
-              sessionId: args.sessionId,
+            await ctx.runMutation(api.branches.updateBranchWorkerSession, {
+              branchId: args.branchId,
               workerSessionId: workerResult.sessionId,
               workerCommandId: workerResult.commandId,
             });
           }
+
         }
       }
 
-      // Step 19: Clear loading stage (sandbox is ready)
-      await ctx.runMutation(api.sessions.clearSessionSandboxLoadingStage, {
-        sessionId: args.sessionId,
+      // Step 20: Clear loading stage (sandbox is ready)
+      await ctx.runMutation(api.branches.clearBranchSandboxLoadingStage, {
+        branchId: args.branchId,
       });
 
       console.log("=== startSandbox action complete ===");
@@ -362,14 +434,14 @@ export const startSandbox = action({
       console.error("=== startSandbox action failed ===");
       console.error("Error:", error);
 
-      // Try to update session sandbox with error
+      // Try to update branch sandbox with error
       try {
-        const session = await ctx.runQuery(api.sessions.getSessionById, {
-          sessionId: args.sessionId,
+        const branch = await ctx.runQuery(api.branches.getBranchById, {
+          branchId: args.branchId,
         });
-        if (session && session.sandboxStatus === "creating") {
-          await ctx.runMutation(api.sessions.updateSessionSandboxError, {
-            sessionId: args.sessionId,
+        if (branch && branch.sandboxStatus === "creating") {
+          await ctx.runMutation(api.branches.updateBranchSandboxError, {
+            branchId: args.branchId,
             error:
               error instanceof Error ? error.message : "Unknown error occurred",
           });
@@ -386,7 +458,7 @@ export const startSandbox = action({
 // Action to restart an existing sandbox (stopped/archived/errored)
 export const restartSandbox = action({
   args: {
-    sessionId: v.id("sessions"),
+    branchId: v.id("branches"),
   },
   returns: v.object({
     sandboxId: v.string(),
@@ -395,36 +467,36 @@ export const restartSandbox = action({
   }),
   handler: async (
     ctx,
-    args: { sessionId: Id<"sessions"> },
+    args: { branchId: Id<"branches"> },
   ): Promise<{ sandboxId: string; domain: string; status: string }> => {
     console.log("=== restartSandbox action called ===");
-    console.log("Session ID:", args.sessionId);
+    console.log("Branch ID:", args.branchId);
 
     try {
-      // Step 1: Get auth and verify session ownership
+      // Step 1: Get auth and verify branch ownership
       const identity = await ctx.auth.getUserIdentity();
       if (!identity?.orgId || typeof identity.orgId !== "string") {
         throw new Error("User must be authenticated with an organization");
       }
 
-      // Step 2: Get existing sandbox from session
-      const session = await ctx.runQuery(api.sessions.getSessionById, {
-        sessionId: args.sessionId,
+      // Step 2: Get existing sandbox from branch
+      const branch = await ctx.runQuery(api.branches.getBranchById, {
+        branchId: args.branchId,
       });
 
-      if (!session) {
-        throw new Error("Session not found");
+      if (!branch) {
+        throw new Error("Branch not found");
       }
 
-      if (!session.sandboxId) {
-        throw new Error("No sandbox found for this session");
+      if (!branch.sandboxId) {
+        throw new Error("No sandbox found for this branch");
       }
 
-      console.log("Restarting sandbox:", session.sandboxId);
+      console.log("Restarting sandbox:", branch.sandboxId);
 
       // Step 3: Get project settings
       const project = await ctx.runQuery(api.projects.getProjectById, {
-        projectId: session.projectId,
+        projectId: branch.projectId,
       });
       if (!project) {
         throw new Error("Project not found");
@@ -437,12 +509,12 @@ export const restartSandbox = action({
         target: (process.env.DAYTONA_TARGET || "us") as "eu" | "us" | "asia",
       });
 
-      const sandbox = await daytona.get(session.sandboxId);
+      const sandbox = await daytona.get(branch.sandboxId);
       console.log("Reconnected to sandbox");
 
       // Step 5: Update status to "creating" (restarting)
-      await ctx.runMutation(api.sessions.initSessionSandbox, {
-        sessionId: args.sessionId,
+      await ctx.runMutation(api.branches.initBranchSandbox, {
+        branchId: args.branchId,
       });
 
       // Step 6: Start the sandbox
@@ -452,8 +524,8 @@ export const restartSandbox = action({
       console.log("Sandbox started successfully");
 
       // Update state to started
-      await ctx.runMutation(api.sessions.updateSessionSandboxState, {
-        sessionId: args.sessionId,
+      await ctx.runMutation(api.branches.updateBranchSandboxState, {
+        branchId: args.branchId,
         state: "started",
       });
 
@@ -461,15 +533,16 @@ export const restartSandbox = action({
       const workDir = await sandbox.getWorkDir();
 
       // Step 8: Update stage to "installing"
-      await ctx.runMutation(api.sessions.updateSessionSandboxStage, {
-        sessionId: args.sessionId,
+      await ctx.runMutation(api.branches.updateBranchSandboxStage, {
+        branchId: args.branchId,
         stage: "installing",
       });
 
       // Step 9: Run install command
       console.log("Running install command:", project.settings.installCommand);
       const installResult = await sandbox.process.executeCommand(
-        `cd ${workDir}/project && ${project.settings.installCommand}`,
+        project.settings.installCommand,
+        `${workDir}/project`, // Set working directory for the command
       );
 
       if (installResult.exitCode !== 0) {
@@ -478,8 +551,8 @@ export const restartSandbox = action({
       console.log("Install command completed successfully");
 
       // Step 10: Update stage to "starting"
-      await ctx.runMutation(api.sessions.updateSessionSandboxStage, {
-        sessionId: args.sessionId,
+      await ctx.runMutation(api.branches.updateBranchSandboxStage, {
+        branchId: args.branchId,
         stage: "starting",
       });
 
@@ -487,10 +560,10 @@ export const restartSandbox = action({
       console.log("Starting dev server:", project.settings.devCommand);
 
       // Create or reuse dev session
-      const devSessionId = session.devSessionId || `dev-server-${Date.now()}`;
+      const devSessionId = branch.devSessionId || `dev-server-${Date.now()}`;
 
       // Only create session if it doesn't exist
-      if (!session.devSessionId) {
+      if (!branch.devSessionId) {
         await sandbox.process.createSession(devSessionId);
       }
 
@@ -507,8 +580,8 @@ export const restartSandbox = action({
 
       // Store session IDs
       if (devResult.cmdId) {
-        await ctx.runMutation(api.sessions.updateSessionDevServerSession, {
-          sessionId: args.sessionId,
+        await ctx.runMutation(api.branches.updateBranchDevServerSession, {
+          branchId: args.branchId,
           devSessionId: devSessionId,
           devCommandId: devResult.cmdId,
         });
@@ -523,9 +596,9 @@ export const restartSandbox = action({
       console.log("Preview token:", previewToken ? "present" : "none");
 
       // Step 13: Update status back to "ready" and clear error
-      await ctx.runMutation(api.sessions.updateSessionSandboxReady, {
-        sessionId: args.sessionId,
-        sandboxId: session.sandboxId,
+      await ctx.runMutation(api.branches.updateBranchSandboxReady, {
+        branchId: args.branchId,
+        sandboxId: branch.sandboxId,
         domain,
         previewToken,
       });
@@ -533,7 +606,7 @@ export const restartSandbox = action({
       console.log("=== restartSandbox action complete ===");
 
       return {
-        sandboxId: session.sandboxId,
+        sandboxId: branch.sandboxId,
         domain,
         status: "ready",
       };
@@ -541,14 +614,14 @@ export const restartSandbox = action({
       console.error("=== restartSandbox action failed ===");
       console.error("Error:", error);
 
-      // Update session sandbox with error
+      // Update branch sandbox with error
       try {
-        const session = await ctx.runQuery(api.sessions.getSessionById, {
-          sessionId: args.sessionId,
+        const branch = await ctx.runQuery(api.branches.getBranchById, {
+          branchId: args.branchId,
         });
-        if (session) {
-          await ctx.runMutation(api.sessions.updateSessionSandboxError, {
-            sessionId: args.sessionId,
+        if (branch) {
+          await ctx.runMutation(api.branches.updateBranchSandboxError, {
+            branchId: args.branchId,
             error:
               error instanceof Error ? error.message : "Unknown error occurred",
           });
@@ -565,7 +638,7 @@ export const restartSandbox = action({
 // Action to retry a failed sandbox (delegates to restartSandbox)
 export const retrySandbox = action({
   args: {
-    sessionId: v.id("sessions"),
+    branchId: v.id("branches"),
   },
   returns: v.object({
     sandboxId: v.string(),
@@ -574,7 +647,7 @@ export const retrySandbox = action({
   }),
   handler: async (
     ctx,
-    args: { sessionId: Id<"sessions"> },
+    args: { branchId: Id<"branches"> },
   ): Promise<{ sandboxId: string; domain: string; status: string }> => {
     console.log(
       "=== retrySandbox action called (delegating to restartSandbox) ===",
@@ -582,7 +655,77 @@ export const retrySandbox = action({
 
     // Simply delegate to restartSandbox - it handles all cases (stopped/archived/errored)
     return await ctx.runAction(api.sandboxActions.restartSandbox, {
-      sessionId: args.sessionId,
+      branchId: args.branchId,
     });
+  },
+});
+
+// Action to get worker logs
+export const getWorkerLogs = action({
+  args: {
+    branchId: v.id("branches"),
+  },
+  returns: v.object({
+    logs: v.string(),
+    success: v.boolean(),
+    error: v.optional(v.string()),
+  }),
+  handler: async (
+    ctx,
+    args: { branchId: Id<"branches"> },
+  ): Promise<{ logs: string; success: boolean; error?: string }> => {
+    console.log("=== getWorkerLogs action called ===");
+
+    try {
+      // Get branch with session IDs
+      const branch = await ctx.runQuery(api.branches.getBranchById, {
+        branchId: args.branchId,
+      });
+
+      if (!branch) {
+        throw new Error("Branch not found");
+      }
+
+      if (!branch.sandboxId) {
+        throw new Error("No sandbox found for this branch");
+      }
+
+      if (!branch.workerSessionId || !branch.workerCommandId) {
+        throw new Error("No worker session found for this branch");
+      }
+
+      // Connect to Daytona
+      const daytona = new Daytona({
+        apiKey: process.env.DAYTONA_API_KEY!,
+        apiUrl: process.env.DAYTONA_API_URL || "https://app.daytona.io/api",
+        target: (process.env.DAYTONA_TARGET || "eu") as "eu" | "us" | "asia",
+      });
+
+      const sandbox = await daytona.get(branch.sandboxId);
+
+      // Fetch worker logs from Daytona session
+      const logsResponse = await sandbox.process.getSessionCommandLogs(
+        branch.workerSessionId,
+        branch.workerCommandId
+      );
+
+      // Combine stdout and stderr
+      const combinedLogs = [
+        logsResponse.stdout ? `[STDOUT]\n${logsResponse.stdout}` : "",
+        logsResponse.stderr ? `[STDERR]\n${logsResponse.stderr}` : "",
+      ].filter(Boolean).join("\n\n");
+
+      return {
+        logs: combinedLogs || logsResponse.output || "(no output)",
+        success: true,
+      };
+    } catch (error) {
+      console.error("Failed to fetch worker logs:", error);
+      return {
+        logs: "",
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
   },
 });

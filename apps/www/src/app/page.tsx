@@ -57,18 +57,7 @@ export default function Home() {
           <span className="text-xl font-[550]">Oracode</span>
         </a>
         <h1 className="text-3xl md:text-4xl font-medium tracking-tighter leading-normal mb-6">
-          Ship with{" "}
-          <span className="hover:-rotate-1 hover:scale-[1.05] transition-transform cursor-default rounded-sm bg-muted px-2 gap-2 inline-flex items-center text-foreground">
-            <Image
-              src="/claude.png"
-              alt="Claude Code"
-              width={32}
-              height={32}
-              className="inline-block size-6 md:size-8"
-            />
-            Claude Code
-          </span>{" "}
-          in the Browser
+          Everyone can ship code now
         </h1>
         <p className="text-muted-foreground text-balance max-w-xl mb-8">
           Prototype features and open PRs without touching the terminal. Just

@@ -4,16 +4,16 @@ import type { Id } from "@repo/convex/_generated/dataModel";
 import { useEffect, useRef } from "react";
 import { useOrganization } from "@clerk/clerk-react";
 
-export function useSandbox(sessionId: Id<"sessions"> | null | undefined) {
+export function useSandbox(branchId: Id<"branches"> | null | undefined) {
   const { organization } = useOrganization();
   const creationInProgress = useRef(false);
   const hasAttempted = useRef(false);
 
-  // Query session directly (includes sandbox fields)
-  // Skip if no sessionId or no organization loaded yet
-  const session = useQuery(
-    api.sessions.getSessionById,
-    sessionId && organization?.id ? { sessionId } : "skip",
+  // Query branch directly (includes sandbox fields)
+  // Skip if no branchId or no organization loaded yet
+  const branch = useQuery(
+    api.branches.getBranchById,
+    branchId && organization?.id ? { branchId } : "skip",
   );
 
   const startSandboxAction = useAction(api.sandboxActions.startSandbox);
@@ -21,19 +21,19 @@ export function useSandbox(sessionId: Id<"sessions"> | null | undefined) {
 
   // Auto-create or auto-restart sandbox
   useEffect(() => {
-    if (!sessionId || !session || creationInProgress.current) return;
+    if (!branchId || !branch || creationInProgress.current) return;
 
     // Don't auto-retry if there's an error - user must manually retry
-    if (session.sandboxStatus === "error") {
+    if (branch.sandboxStatus === "error") {
       hasAttempted.current = true;
       return;
     }
 
     // If no sandbox exists and we haven't attempted yet, create one
-    if (!session.sandboxId && !hasAttempted.current) {
+    if (!branch.sandboxId && !hasAttempted.current) {
       creationInProgress.current = true;
       hasAttempted.current = true;
-      startSandboxAction({ sessionId })
+      startSandboxAction({ branchId })
         .then(() => {
           creationInProgress.current = false;
         })
@@ -46,13 +46,13 @@ export function useSandbox(sessionId: Id<"sessions"> | null | undefined) {
 
     // If sandbox exists but stopped/archived, restart it automatically
     const shouldRestart =
-      session.sandboxId &&
-      session.sandboxState !== "started" &&
-      session.sandboxStatus !== "creating";
+      branch.sandboxId &&
+      branch.sandboxState !== "started" &&
+      branch.sandboxStatus !== "creating";
 
     if (shouldRestart) {
       creationInProgress.current = true;
-      retrySandboxAction({ sessionId })
+      retrySandboxAction({ branchId })
         .then(() => {
           creationInProgress.current = false;
         })
@@ -61,17 +61,17 @@ export function useSandbox(sessionId: Id<"sessions"> | null | undefined) {
           creationInProgress.current = false;
         });
     }
-  }, [sessionId, session, startSandboxAction, retrySandboxAction]);
+  }, [branchId, branch, startSandboxAction, retrySandboxAction]);
 
   const retrySandbox = () => {
-    if (!sessionId || !session || creationInProgress.current) return;
+    if (!branchId || !branch || creationInProgress.current) return;
     creationInProgress.current = true;
     hasAttempted.current = false; // Reset attempt flag for manual retry
 
     // If no sandboxId exists, create new sandbox, otherwise restart existing
-    const action = session.sandboxId ? retrySandboxAction : startSandboxAction;
+    const action = branch.sandboxId ? retrySandboxAction : startSandboxAction;
 
-    action({ sessionId })
+    action({ branchId })
       .then(() => {
         creationInProgress.current = false;
       })
@@ -84,28 +84,28 @@ export function useSandbox(sessionId: Id<"sessions"> | null | undefined) {
 
   // Sandbox is ready when status is "ready", state is "started", and has domain
   const isReady =
-    session?.sandboxStatus === "ready" &&
-    session?.sandboxState === "started" &&
-    !!session?.sandboxDomain;
+    branch?.sandboxStatus === "ready" &&
+    branch?.sandboxState === "started" &&
+    !!branch?.sandboxDomain;
 
   // Build preview URL with authentication token
-  const previewUrl = session?.sandboxDomain
-    ? session.sandboxPreviewToken
-      ? `${session.sandboxDomain}?token=${session.sandboxPreviewToken}`
-      : session.sandboxDomain
+  const previewUrl = branch?.sandboxDomain
+    ? branch.sandboxPreviewToken
+      ? `${branch.sandboxDomain}?token=${branch.sandboxPreviewToken}`
+      : branch.sandboxDomain
     : "";
 
   return {
-    sandbox: session, // For backwards compatibility
-    isCreating: session?.sandboxStatus === "creating",
+    sandbox: branch, // For backwards compatibility
+    isCreating: branch?.sandboxStatus === "creating",
     isReady,
-    isStopped: session?.sandboxState === "stopped",
-    isArchived: session?.sandboxState === "archived",
-    hasError: session?.sandboxStatus === "error",
-    domain: session?.sandboxDomain || "",
+    isStopped: branch?.sandboxState === "stopped",
+    isArchived: branch?.sandboxState === "archived",
+    hasError: branch?.sandboxStatus === "error",
+    domain: branch?.sandboxDomain || "",
     previewUrl, // Use this for iframe src
-    error: session?.sandboxError,
-    loadingStage: session?.sandboxLoadingStage,
+    error: branch?.sandboxError,
+    loadingStage: branch?.sandboxLoadingStage,
     retrySandbox,
   };
 }

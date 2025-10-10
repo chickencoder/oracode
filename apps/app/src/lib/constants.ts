@@ -4,9 +4,11 @@
 
 /**
  * Get GitHub avatar URL for a given username or organization
+ * @param usernameOrOrg - GitHub username or organization slug
+ * @param size - Avatar size in pixels (default: 40 for Retina displays)
  */
-export function getGitHubAvatarUrl(usernameOrOrg: string): string {
-  return `https://github.com/${usernameOrOrg}.png`;
+export function getGitHubAvatarUrl(usernameOrOrg: string, size: number = 40): string {
+  return `https://github.com/${usernameOrOrg}.png?s=${size}`;
 }
 
 /**

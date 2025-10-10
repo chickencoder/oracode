@@ -102,7 +102,7 @@ export const getProjects = query({
         port: v.number(),
       }),
       createdAt: v.number(),
-    })
+    }),
   ),
   handler: async (ctx) => {
     // Get orgId from authenticated user
@@ -171,7 +171,10 @@ export const updateProject = mutation({
   },
 });
 
-// Delete a project and all associated sessions
+// Note: Environment variables are now managed through projectEnvironmentVariables.ts
+// This mutation has been removed as env vars are stored separately in the secrets table
+
+// Delete a project and all associated branches
 export const deleteProject = mutation({
   args: {
     projectId: v.id("projects"),
@@ -194,25 +197,25 @@ export const deleteProject = mutation({
       throw new Error("Not authorized to delete this project");
     }
 
-    // Delete all sessions associated with this project
-    const sessions = await ctx.db
-      .query("sessions")
+    // Delete all branches associated with this project
+    const branches = await ctx.db
+      .query("branches")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
       .collect();
 
-    for (const session of sessions) {
-      // Delete all messages for each session
+    for (const branch of branches) {
+      // Delete all messages for each branch
       const messages = await ctx.db
         .query("messages")
-        .withIndex("by_session", (q) => q.eq("sessionId", session._id))
+        .withIndex("by_branch", (q) => q.eq("branchId", branch._id))
         .collect();
 
       for (const message of messages) {
         await ctx.db.delete(message._id);
       }
 
-      // Delete the session
-      await ctx.db.delete(session._id);
+      // Delete the branch
+      await ctx.db.delete(branch._id);
     }
 
     // Delete the project

@@ -3,7 +3,7 @@ import { query, mutation } from "./_generated/server";
 
 export const getLastUserMessage = query({
   args: {
-    sessionId: v.id("sessions"),
+    branchId: v.id("branches"),
   },
   returns: v.union(
     v.object({
@@ -17,7 +17,7 @@ export const getLastUserMessage = query({
       ),
       parts: v.array(v.any()),
       metadata: v.optional(v.any()),
-      sessionId: v.id("sessions"),
+      branchId: v.id("branches"),
       userId: v.string(),
       orgId: v.string(),
     }),
@@ -31,20 +31,20 @@ export const getLastUserMessage = query({
     }
     const orgId = identity.orgId;
 
-    // Verify session belongs to user's org
-    const session = await ctx.db.get(args.sessionId);
-    if (!session) {
-      throw new Error("Session not found");
+    // Verify branch belongs to user's org
+    const branch = await ctx.db.get(args.branchId);
+    if (!branch) {
+      throw new Error("Branch not found");
     }
-    const project = await ctx.db.get(session.projectId);
+    const project = await ctx.db.get(branch.projectId);
     if (!project || project.orgId !== orgId) {
-      throw new Error("Not authorized to access this session");
+      throw new Error("Not authorized to access this branch");
     }
 
     const lastUserMessage = await ctx.db
       .query("messages")
-      .withIndex("by_org_and_session", (q) =>
-        q.eq("orgId", orgId).eq("sessionId", args.sessionId)
+      .withIndex("by_org_and_branch", (q) =>
+        q.eq("orgId", orgId).eq("branchId", args.branchId)
       )
       .filter((q) => q.eq(q.field("role"), "user"))
       .order("desc")
@@ -54,11 +54,11 @@ export const getLastUserMessage = query({
       return null;
     }
 
-    // Check if there are any assistant messages after this user message in the same session
+    // Check if there are any assistant messages after this user message in the same branch
     const assistantMessageAfter = await ctx.db
       .query("messages")
-      .withIndex("by_org_and_session", (q) =>
-        q.eq("orgId", orgId).eq("sessionId", args.sessionId)
+      .withIndex("by_org_and_branch", (q) =>
+        q.eq("orgId", orgId).eq("branchId", args.branchId)
       )
       .filter((q) =>
         q.and(
@@ -78,7 +78,7 @@ export const insertAssistantMessage = mutation({
     id: v.string(),
     parts: v.array(v.any()),
     metadata: v.optional(v.any()),
-    sessionId: v.id("sessions"),
+    branchId: v.id("branches"),
   },
   handler: async (ctx, args) => {
     // Get authenticated user
@@ -89,14 +89,14 @@ export const insertAssistantMessage = mutation({
     const orgId = identity.orgId;
     const userId = identity.subject;
 
-    // Verify session belongs to user's org
-    const session = await ctx.db.get(args.sessionId);
-    if (!session) {
-      throw new Error("Session not found");
+    // Verify branch belongs to user's org
+    const branch = await ctx.db.get(args.branchId);
+    if (!branch) {
+      throw new Error("Branch not found");
     }
-    const project = await ctx.db.get(session.projectId);
+    const project = await ctx.db.get(branch.projectId);
     if (!project || project.orgId !== orgId) {
-      throw new Error("Not authorized to access this session");
+      throw new Error("Not authorized to access this branch");
     }
 
     return await ctx.db.insert("messages", {
@@ -104,7 +104,7 @@ export const insertAssistantMessage = mutation({
       role: "assistant",
       parts: args.parts,
       metadata: args.metadata,
-      sessionId: args.sessionId,
+      branchId: args.branchId,
       userId,
       orgId,
     });
@@ -116,7 +116,7 @@ export const upsertAssistantMessage = mutation({
     id: v.string(),
     parts: v.array(v.any()),
     metadata: v.optional(v.any()),
-    sessionId: v.id("sessions"),
+    branchId: v.id("branches"),
   },
   handler: async (ctx, args) => {
     // Get authenticated user
@@ -127,14 +127,14 @@ export const upsertAssistantMessage = mutation({
     const orgId = identity.orgId;
     const userId = identity.subject;
 
-    // Verify session belongs to user's org
-    const session = await ctx.db.get(args.sessionId);
-    if (!session) {
-      throw new Error("Session not found");
+    // Verify branch belongs to user's org
+    const branch = await ctx.db.get(args.branchId);
+    if (!branch) {
+      throw new Error("Branch not found");
     }
-    const project = await ctx.db.get(session.projectId);
+    const project = await ctx.db.get(branch.projectId);
     if (!project || project.orgId !== orgId) {
-      throw new Error("Not authorized to access this session");
+      throw new Error("Not authorized to access this branch");
     }
 
     // Try to find existing message
@@ -148,7 +148,7 @@ export const upsertAssistantMessage = mutation({
       return await ctx.db.patch(existingMessage._id, {
         parts: args.parts,
         metadata: args.metadata,
-        sessionId: args.sessionId,
+        branchId: args.branchId,
       });
     } else {
       // Insert new message
@@ -157,7 +157,7 @@ export const upsertAssistantMessage = mutation({
         role: "assistant",
         parts: args.parts,
         metadata: args.metadata,
-        sessionId: args.sessionId,
+        branchId: args.branchId,
         userId,
         orgId,
       });
@@ -170,7 +170,7 @@ export const insertUserMessage = mutation({
     id: v.string(),
     parts: v.array(v.any()),
     metadata: v.optional(v.any()),
-    sessionId: v.id("sessions"),
+    branchId: v.id("branches"),
   },
   handler: async (ctx, args) => {
     // Get authenticated user
@@ -181,14 +181,14 @@ export const insertUserMessage = mutation({
     const orgId = identity.orgId;
     const userId = identity.subject;
 
-    // Verify session belongs to user's org
-    const session = await ctx.db.get(args.sessionId);
-    if (!session) {
-      throw new Error("Session not found");
+    // Verify branch belongs to user's org
+    const branch = await ctx.db.get(args.branchId);
+    if (!branch) {
+      throw new Error("Branch not found");
     }
-    const project = await ctx.db.get(session.projectId);
+    const project = await ctx.db.get(branch.projectId);
     if (!project || project.orgId !== orgId) {
-      throw new Error("Not authorized to access this session");
+      throw new Error("Not authorized to access this branch");
     }
 
     return await ctx.db.insert("messages", {
@@ -196,7 +196,7 @@ export const insertUserMessage = mutation({
       role: "user",
       parts: args.parts,
       metadata: args.metadata,
-      sessionId: args.sessionId,
+      branchId: args.branchId,
       userId,
       orgId,
     });
@@ -217,7 +217,7 @@ export const getAllMessages = query({
       ),
       parts: v.array(v.any()),
       metadata: v.optional(v.any()),
-      sessionId: v.id("sessions"),
+      branchId: v.id("branches"),
       userId: v.string(),
       orgId: v.string(),
     })
@@ -239,8 +239,8 @@ export const getAllMessages = query({
 });
 
 
-export const getCurrentSessionId = query({
-  returns: v.union(v.id("sessions"), v.null()),
+export const getCurrentBranchId = query({
+  returns: v.union(v.id("branches"), v.null()),
   handler: async (ctx) => {
     // Get authenticated user
     const identity = await ctx.auth.getUserIdentity();
@@ -249,7 +249,7 @@ export const getCurrentSessionId = query({
     }
     const orgId = identity.orgId;
 
-    // Get the most recent assistant message, which should have the current sessionId
+    // Get the most recent assistant message, which should have the current branchId
     const lastAssistantMessage = await ctx.db
       .query("messages")
       .filter((q) =>
@@ -261,13 +261,13 @@ export const getCurrentSessionId = query({
       .order("desc")
       .first();
 
-    return lastAssistantMessage?.sessionId || null;
+    return lastAssistantMessage?.branchId || null;
   },
 });
 
-export const getMessagesBySessionId = query({
+export const getMessagesByBranchId = query({
   args: {
-    sessionId: v.id("sessions"),
+    branchId: v.id("branches"),
   },
   returns: v.array(
     v.object({
@@ -281,7 +281,7 @@ export const getMessagesBySessionId = query({
       ),
       parts: v.array(v.any()),
       metadata: v.optional(v.any()),
-      sessionId: v.id("sessions"),
+      branchId: v.id("branches"),
       userId: v.string(),
       orgId: v.string(),
     })
@@ -294,20 +294,20 @@ export const getMessagesBySessionId = query({
     }
     const orgId = identity.orgId;
 
-    // Verify session belongs to user's org
-    const session = await ctx.db.get(args.sessionId);
-    if (!session) {
-      throw new Error("Session not found");
+    // Verify branch belongs to user's org
+    const branch = await ctx.db.get(args.branchId);
+    if (!branch) {
+      throw new Error("Branch not found");
     }
-    const project = await ctx.db.get(session.projectId);
+    const project = await ctx.db.get(branch.projectId);
     if (!project || project.orgId !== orgId) {
-      throw new Error("Not authorized to access this session");
+      throw new Error("Not authorized to access this branch");
     }
 
     return await ctx.db
       .query("messages")
-      .withIndex("by_org_and_session", (q) =>
-        q.eq("orgId", orgId).eq("sessionId", args.sessionId)
+      .withIndex("by_org_and_branch", (q) =>
+        q.eq("orgId", orgId).eq("branchId", args.branchId)
       )
       .order("asc")
       .collect();
