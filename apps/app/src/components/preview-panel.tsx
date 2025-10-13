@@ -36,6 +36,12 @@ export function PreviewPanel({
 }: PreviewPanelProps) {
   const [isIframeLoading, setIsIframeLoading] = useState(!!domain);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const handleRetry = () => {
+    setIsRetrying(true);
+    onRetry();
+  };
 
   // Update loading state when domain changes
   useEffect(() => {
@@ -110,8 +116,13 @@ export function PreviewPanel({
                 <AlertDescription className="mb-4">
                   {error || "An error occurred while setting up the sandbox"}
                 </AlertDescription>
-                <Button onClick={onRetry} size="sm" disabled={isCreating}>
-                  {isCreating ? "Retrying..." : "Try again"}
+                <Button
+                  onClick={handleRefresh}
+                  loading={isRetrying}
+                  size="sm"
+                  disabled={isCreating}
+                >
+                  Try again
                 </Button>
               </Alert>
             </div>

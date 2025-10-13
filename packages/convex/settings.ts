@@ -13,7 +13,7 @@ export const get = query({
   args: {},
   returns: v.union(
     v.object({
-      _id: v.id("organizationSettings"),
+      _id: v.id("settings"),
       _creationTime: v.number(),
       orgId: v.string(),
       anthropicApiKey: v.optional(v.id("secrets")),
@@ -30,7 +30,7 @@ export const get = query({
     const orgId = identity.orgId;
 
     const settings = await ctx.db
-      .query("organizationSettings")
+      .query("settings")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .first();
 
@@ -61,7 +61,7 @@ export const setAnthropicApiKey = action({
     }
 
     // Get or create organization settings
-    const existingSettings = await ctx.runQuery(internal.lib.organizationSettingsHelpers.getByOrgId, {
+    const existingSettings = await ctx.runQuery(internal.lib.settingsHelpers.getByOrgId, {
       orgId,
     });
 
@@ -79,7 +79,7 @@ export const setAnthropicApiKey = action({
           plaintextValue: args.apiKey,
           createdBy: userId,
         });
-        await ctx.runMutation(internal.lib.organizationSettingsHelpers.updateSettings, {
+        await ctx.runMutation(internal.lib.settingsHelpers.updateSettings, {
           settingsId: existingSettings._id,
           anthropicApiKey: secretId,
         });
@@ -90,7 +90,7 @@ export const setAnthropicApiKey = action({
         plaintextValue: args.apiKey,
         createdBy: userId,
       });
-      await ctx.runMutation(internal.lib.organizationSettingsHelpers.createSettings, {
+      await ctx.runMutation(internal.lib.settingsHelpers.createSettings, {
         orgId,
         anthropicApiKey: secretId,
       });
@@ -113,7 +113,7 @@ export const removeAnthropicApiKey = action({
     }
     const orgId = identity.orgId;
 
-    const settings = await ctx.runQuery(internal.lib.organizationSettingsHelpers.getByOrgId, {
+    const settings = await ctx.runQuery(internal.lib.settingsHelpers.getByOrgId, {
       orgId,
     });
 
@@ -124,7 +124,7 @@ export const removeAnthropicApiKey = action({
       });
 
       // Remove the reference
-      await ctx.runMutation(internal.lib.organizationSettingsHelpers.updateSettings, {
+      await ctx.runMutation(internal.lib.settingsHelpers.updateSettings, {
         settingsId: settings._id,
         anthropicApiKey: undefined,
       });
@@ -147,7 +147,7 @@ export const getAnthropicApiKeyDecrypted = action({
     // by sandboxActions.ts and similar server-side code
     // If exposing to clients, add auth checks
 
-    const settings = await ctx.runQuery(internal.lib.organizationSettingsHelpers.getByOrgId, {
+    const settings = await ctx.runQuery(internal.lib.settingsHelpers.getByOrgId, {
       orgId: args.orgId,
     });
 

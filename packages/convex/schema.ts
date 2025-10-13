@@ -24,6 +24,7 @@ export default defineSchema({
     createdAt: v.number(),
     // Sandbox fields (1:1 relationship)
     sandboxId: v.optional(v.string()), // Sandbox ID
+    sandboxVolumeId: v.optional(v.string()), // Daytona Volume ID for persistent storage
     sandboxStatus: v.optional(
       v.union(
         v.literal("creating"), // Being provisioned
@@ -106,7 +107,7 @@ export default defineSchema({
   }),
 
   // Organization-level settings and API keys
-  organizationSettings: defineTable({
+  settings: defineTable({
     orgId: v.string(), // Link to Clerk organization
     anthropicApiKey: v.optional(v.id("secrets")), // Reference to encrypted Anthropic API key
     createdAt: v.number(),
@@ -114,7 +115,7 @@ export default defineSchema({
   }).index("by_org", ["orgId"]),
 
   // Project environment variables (references secrets)
-  projectEnvironmentVariables: defineTable({
+  variables: defineTable({
     projectId: v.id("projects"), // Link to project
     key: v.string(), // Environment variable name (e.g., "DATABASE_URL", "PORT")
     secretId: v.id("secrets"), // Reference to encrypted secret value

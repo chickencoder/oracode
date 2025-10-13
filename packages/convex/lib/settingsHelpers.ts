@@ -12,7 +12,7 @@ export const getByOrgId = internalQuery({
   },
   returns: v.union(
     v.object({
-      _id: v.id("organizationSettings"),
+      _id: v.id("settings"),
       _creationTime: v.number(),
       orgId: v.string(),
       anthropicApiKey: v.optional(v.id("secrets")),
@@ -23,7 +23,7 @@ export const getByOrgId = internalQuery({
   ),
   handler: async (ctx, args) => {
     return await ctx.db
-      .query("organizationSettings")
+      .query("settings")
       .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
       .first();
   },
@@ -34,10 +34,10 @@ export const createSettings = internalMutation({
     orgId: v.string(),
     anthropicApiKey: v.optional(v.id("secrets")),
   },
-  returns: v.id("organizationSettings"),
+  returns: v.id("settings"),
   handler: async (ctx, args) => {
     const now = Date.now();
-    return await ctx.db.insert("organizationSettings", {
+    return await ctx.db.insert("settings", {
       orgId: args.orgId,
       anthropicApiKey: args.anthropicApiKey,
       createdAt: now,
@@ -48,7 +48,7 @@ export const createSettings = internalMutation({
 
 export const updateSettings = internalMutation({
   args: {
-    settingsId: v.id("organizationSettings"),
+    settingsId: v.id("settings"),
     anthropicApiKey: v.optional(v.id("secrets")),
   },
   returns: v.null(),

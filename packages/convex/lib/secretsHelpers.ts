@@ -13,6 +13,7 @@ export const getSecret = internalQuery({
   returns: v.union(
     v.object({
       _id: v.id("secrets"),
+      _creationTime: v.number(),
       encryptedValue: v.string(),
       encryptionMetadata: v.object({
         iv: v.string(),

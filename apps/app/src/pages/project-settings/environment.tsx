@@ -35,14 +35,14 @@ export function EnvironmentVariablesPage() {
 
   // Load environment variables from the new secure storage
   const existingVars = useQuery(
-    api.projectEnvironmentVariables.list,
+    api.variables.list,
     projectId && organization?.id
       ? { projectId: projectId as Id<"projects"> }
       : "skip",
   );
 
-  const setEnvVar = useAction(api.projectEnvironmentVariables.set);
-  const removeEnvVar = useAction(api.projectEnvironmentVariables.remove);
+  const setEnvVar = useAction(api.variables.set);
+  const removeEnvVar = useAction(api.variables.remove);
 
   // Load environment variables when data is available
   useEffect(() => {

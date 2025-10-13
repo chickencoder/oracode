@@ -44,6 +44,7 @@ export const getBranchById = query({
       createdAt: v.number(),
       // Sandbox fields
       sandboxId: v.optional(v.string()),
+      sandboxVolumeId: v.optional(v.string()),
       sandboxStatus: v.optional(
         v.union(v.literal("creating"), v.literal("ready"), v.literal("error")),
       ),
@@ -110,6 +111,7 @@ export const getBranchesByProject = query({
       createdAt: v.number(),
       // Sandbox fields
       sandboxId: v.optional(v.string()),
+      sandboxVolumeId: v.optional(v.string()),
       sandboxStatus: v.optional(
         v.union(v.literal("creating"), v.literal("ready"), v.literal("error")),
       ),
@@ -235,6 +237,41 @@ export const updateBranchSandbox = mutation({
 
     await ctx.db.patch(args.branchId, {
       sandboxId: args.sandboxId,
+    });
+
+    return null;
+  },
+});
+
+// Mutation to update sandbox and volume IDs
+export const updateBranchSandboxAndVolume = mutation({
+  args: {
+    branchId: v.id("branches"),
+    sandboxId: v.string(),
+    volumeId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    // Get authenticated user
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.orgId || typeof identity.orgId !== "string") {
+      throw new Error("User must be authenticated with an organization");
+    }
+    const orgId = identity.orgId;
+
+    // Verify branch belongs to user's org
+    const branch = await ctx.db.get(args.branchId);
+    if (!branch) {
+      throw new Error("Branch not found");
+    }
+    const project = await ctx.db.get(branch.projectId);
+    if (!project || project.orgId !== orgId) {
+      throw new Error("Not authorized to access this branch");
+    }
+
+    await ctx.db.patch(args.branchId, {
+      sandboxId: args.sandboxId,
+      sandboxVolumeId: args.volumeId,
     });
 
     return null;

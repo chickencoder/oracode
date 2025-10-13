@@ -171,7 +171,7 @@ export const updateProject = mutation({
   },
 });
 
-// Note: Environment variables are now managed through projectEnvironmentVariables.ts
+// Note: Environment variables are now managed through variables.ts
 // This mutation has been removed as env vars are stored separately in the secrets table
 
 // Delete a project and all associated branches

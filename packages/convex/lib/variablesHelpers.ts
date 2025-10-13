@@ -39,7 +39,7 @@ export const getByProjectAndKey = internalQuery({
   },
   returns: v.union(
     v.object({
-      _id: v.id("projectEnvironmentVariables"),
+      _id: v.id("variables"),
       _creationTime: v.number(),
       projectId: v.id("projects"),
       key: v.string(),
@@ -52,7 +52,7 @@ export const getByProjectAndKey = internalQuery({
   ),
   handler: async (ctx, args) => {
     return await ctx.db
-      .query("projectEnvironmentVariables")
+      .query("variables")
       .withIndex("by_project_and_key", (q) =>
         q.eq("projectId", args.projectId).eq("key", args.key)
       )
@@ -66,7 +66,7 @@ export const listInternal = internalQuery({
   },
   returns: v.array(
     v.object({
-      _id: v.id("projectEnvironmentVariables"),
+      _id: v.id("variables"),
       _creationTime: v.number(),
       projectId: v.id("projects"),
       key: v.string(),
@@ -78,7 +78,7 @@ export const listInternal = internalQuery({
   ),
   handler: async (ctx, args) => {
     return await ctx.db
-      .query("projectEnvironmentVariables")
+      .query("variables")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
       .collect();
   },
@@ -91,10 +91,10 @@ export const create = internalMutation({
     secretId: v.id("secrets"),
     createdBy: v.string(),
   },
-  returns: v.id("projectEnvironmentVariables"),
+  returns: v.id("variables"),
   handler: async (ctx, args) => {
     const now = Date.now();
-    return await ctx.db.insert("projectEnvironmentVariables", {
+    return await ctx.db.insert("variables", {
       projectId: args.projectId,
       key: args.key,
       secretId: args.secretId,
@@ -107,7 +107,7 @@ export const create = internalMutation({
 
 export const deleteRecord = internalMutation({
   args: {
-    envVarId: v.id("projectEnvironmentVariables"),
+    envVarId: v.id("variables"),
   },
   returns: v.null(),
   handler: async (ctx, args) => {

@@ -34,15 +34,20 @@ import {
 import { Trash2 } from "lucide-react";
 
 const formSchema = z.object({
-  apiKey: z.string().min(1, "API Key is required").startsWith("sk-ant-", "Must be a valid Anthropic API key"),
+  apiKey: z
+    .string()
+    .min(1, "API Key is required")
+    .startsWith("sk-ant-", "Must be a valid Anthropic API key"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
 export function ClaudeCodeSettingsPage() {
-  const settings = useQuery(api.organizationSettings.get);
-  const setApiKey = useAction(api.organizationSettings.setAnthropicApiKey);
-  const removeApiKey = useAction(api.organizationSettings.removeAnthropicApiKey);
+  const settings = useQuery(api.settings.get);
+  const setApiKey = useAction(api.settings.setAnthropicApiKey);
+  const removeApiKey = useAction(
+    api.settings.removeAnthropicApiKey,
+  );
   const [isRemoving, setIsRemoving] = useState(false);
   const [showRemoveDialog, setShowRemoveDialog] = useState(false);
 
@@ -62,7 +67,9 @@ export function ClaudeCodeSettingsPage() {
       form.reset({ apiKey: "" });
     } catch (error) {
       console.error("Failed to save API key:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to save API key");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to save API key",
+      );
     }
   };
 
@@ -88,7 +95,8 @@ export function ClaudeCodeSettingsPage() {
           <CardHeader>
             <CardTitle>Claude Code API Key</CardTitle>
             <CardDescription>
-              Your Anthropic API key will be used by all members of this organization.
+              Your Anthropic API key will be used by all members of this
+              organization.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -106,7 +114,8 @@ export function ClaudeCodeSettingsPage() {
           <CardHeader>
             <CardTitle>Claude Code API Key</CardTitle>
             <CardDescription>
-              Your Anthropic API key will be used by all members of this organization.
+              Your Anthropic API key will be used by all members of this
+              organization.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -114,11 +123,13 @@ export function ClaudeCodeSettingsPage() {
               <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
                 <div className="flex items-center gap-3">
                   <div className="font-mono text-sm">••••••••••••••••</div>
-                  <span className="text-sm text-muted-foreground">API Key configured</span>
+                  <span className="text-sm text-muted-foreground">
+                    API Key configured
+                  </span>
                 </div>
                 <Button
                   type="button"
-                  variant="destructive"
+                  variant="outline"
                   size="sm"
                   onClick={() => setShowRemoveDialog(true)}
                 >
@@ -128,7 +139,10 @@ export function ClaudeCodeSettingsPage() {
               </div>
             ) : (
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <form
+                  onSubmit={form.handleSubmit(onSubmit)}
+                  className="space-y-4"
+                >
                   <FormField
                     control={form.control}
                     name="apiKey"
@@ -177,7 +191,8 @@ export function ClaudeCodeSettingsPage() {
           <DialogHeader>
             <DialogTitle>Remove API Key</DialogTitle>
             <DialogDescription>
-              Are you sure you want to remove the API key? This will affect all organization members.
+              Are you sure you want to remove the API key? This will affect all
+              organization members.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
