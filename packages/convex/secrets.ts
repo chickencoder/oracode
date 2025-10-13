@@ -105,7 +105,7 @@ export const batchDecrypt = internalAction({
   args: {
     secretIds: v.array(v.id("secrets")),
   },
-  returns: v.object({}), // Map of string -> string, but Convex doesn't have a Map type
+  returns: v.any(), // Dynamic map of secretId -> decrypted value (Record<string, string>)
   handler: async (ctx, args) => {
     const result: Record<string, string> = {};
 

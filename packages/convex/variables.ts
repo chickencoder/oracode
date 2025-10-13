@@ -15,7 +15,7 @@ export const list = query({
   },
   returns: v.array(
     v.object({
-      _id: v.id("projectEnvironmentVariables"),
+      _id: v.id("variables"),
       _creationTime: v.number(),
       projectId: v.id("projects"),
       key: v.string(),
@@ -39,7 +39,7 @@ export const list = query({
     }
 
     return await ctx.db
-      .query("projectEnvironmentVariables")
+      .query("variables")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
       .collect();
   },
@@ -69,7 +69,7 @@ export const set = action({
     const userId = identity.subject;
 
     // Verify project belongs to user's org
-    const project = await ctx.runQuery(internal.lib.projectEnvironmentVariablesHelpers.getProject, {
+    const project = await ctx.runQuery(internal.lib.variablesHelpers.getProject, {
       projectId: args.projectId,
     });
     if (!project || project.orgId !== orgId) {
@@ -78,7 +78,7 @@ export const set = action({
 
     // Check if variable already exists
     const existing = await ctx.runQuery(
-      internal.lib.projectEnvironmentVariablesHelpers.getByProjectAndKey,
+      internal.lib.variablesHelpers.getByProjectAndKey,
       {
         projectId: args.projectId,
         key: args.key,
@@ -97,7 +97,7 @@ export const set = action({
         plaintextValue: args.value,
         createdBy: userId,
       });
-      await ctx.runMutation(internal.lib.projectEnvironmentVariablesHelpers.create, {
+      await ctx.runMutation(internal.lib.variablesHelpers.create, {
         projectId: args.projectId,
         key: args.key,
         secretId,
@@ -126,7 +126,7 @@ export const remove = action({
     const orgId = identity.orgId;
 
     // Verify project belongs to user's org
-    const project = await ctx.runQuery(internal.lib.projectEnvironmentVariablesHelpers.getProject, {
+    const project = await ctx.runQuery(internal.lib.variablesHelpers.getProject, {
       projectId: args.projectId,
     });
     if (!project || project.orgId !== orgId) {
@@ -134,7 +134,7 @@ export const remove = action({
     }
 
     const envVar = await ctx.runQuery(
-      internal.lib.projectEnvironmentVariablesHelpers.getByProjectAndKey,
+      internal.lib.variablesHelpers.getByProjectAndKey,
       {
         projectId: args.projectId,
         key: args.key,
@@ -148,7 +148,7 @@ export const remove = action({
       });
 
       // Delete the environment variable record
-      await ctx.runMutation(internal.lib.projectEnvironmentVariablesHelpers.deleteRecord, {
+      await ctx.runMutation(internal.lib.variablesHelpers.deleteRecord, {
         envVarId: envVar._id,
       });
     }
@@ -165,13 +165,13 @@ export const getAllDecrypted = action({
   args: {
     projectId: v.id("projects"),
   },
-  returns: v.object({}), // Map of string -> string
+  returns: v.any(), // Dynamic map of string -> string (Record<string, string>)
   handler: async (ctx, args) => {
     // Note: This action doesn't check auth because it's intended for internal use
     // by sandboxActions.ts when deploying worker to sandbox
     // If exposing to clients, add auth checks
 
-    const envVars = await ctx.runQuery(internal.lib.projectEnvironmentVariablesHelpers.listInternal, {
+    const envVars = await ctx.runQuery(internal.lib.variablesHelpers.listInternal, {
       projectId: args.projectId,
     });
 

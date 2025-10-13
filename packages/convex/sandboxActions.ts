@@ -44,7 +44,10 @@ export const startSandbox = action({
       if (!clerkUserId) {
         throw new Error("No Clerk user ID found in identity");
       }
-      const clerkToken = await generateClerkTokenForConvex(clerkUserId, identity.orgId);
+      const clerkToken = await generateClerkTokenForConvex(
+        clerkUserId,
+        identity.orgId,
+      );
 
       // Step 2: Check for existing sandbox in branch
       const branch = await ctx.runQuery(api.branches.getBranchById, {
@@ -144,7 +147,7 @@ export const startSandbox = action({
         target: (process.env.DAYTONA_TARGET || "eu") as "eu" | "us" | "asia",
       });
 
-      // Step 9: Create Daytona Sandbox
+      // Step 9: Create Daytona Sandbox (without volume for now - Git needs local filesystem)
       console.log("Creating Daytona Sandbox...");
       const baseImage = buildOracodeImage();
 
@@ -157,6 +160,11 @@ export const startSandbox = action({
               NODE_ENV: "development",
             },
             public: true,
+            resources: {
+              cpu: 2, // 2 vCPUs for better performance
+              memory: 4, // 4GB RAM for npm installs
+              disk: 10, // 10GB disk (max allowed, up from 3GB default)
+            },
           },
           {
             timeout: 0, // No timeout - wait indefinitely
@@ -197,12 +205,12 @@ export const startSandbox = action({
       });
       console.log("Stored sandbox ID and state");
 
-      // Step 11: Get working directory
+      // Step 12: Get working directory
       // (pnpm + Claude SDK are pre-installed in the declarative image)
       const workDir = await sandbox.getWorkDir();
       console.log("Working directory:", workDir);
 
-      // Step 12: Clone repository using Daytona's Git API
+      // Step 13: Clone repository using Daytona's Git API
       console.log("Cloning repository:", cloneUrl);
       console.log("Into directory:", `${workDir}/project`);
 
@@ -218,7 +226,7 @@ export const startSandbox = action({
 
       console.log("Repository cloned successfully");
 
-      // Step 12b: Checkout the git branch (create if doesn't exist)
+      // Step 13b: Checkout the git branch (create if doesn't exist)
       console.log("Checking out git branch:", branch.branchName);
       const checkoutResult = await sandbox.process.executeCommand(
         `git checkout -B ${branch.branchName}`,
@@ -226,23 +234,26 @@ export const startSandbox = action({
       );
 
       if (checkoutResult.exitCode !== 0) {
-        console.warn("Failed to checkout branch, continuing with default:", checkoutResult.result);
+        console.warn(
+          "Failed to checkout branch, continuing with default:",
+          checkoutResult.result,
+        );
       } else {
         console.log("Git branch checked out successfully");
       }
 
-      // Step 13: Update stage to "installing"
+      // Step 14: Update stage to "installing"
       await ctx.runMutation(api.branches.updateBranchSandboxStage, {
         branchId: args.branchId,
         stage: "installing",
       });
 
-      // Step 13: Run install command
+      // Step 15: Run install command
       // pnpm is pre-installed in the declarative image
       console.log("Running install command:", project.settings.installCommand);
       const installResult = await sandbox.process.executeCommand(
         project.settings.installCommand,
-        `${workDir}/project`, // Set working directory for the command
+        `${workDir}/project`,
       );
 
       console.log("Install result:", {
@@ -257,13 +268,67 @@ export const startSandbox = action({
       }
       console.log("Install command completed successfully");
 
-      // Step 16: Update stage to "starting"
+      // Step 16: Fetch and decrypt secrets for dev server and worker
+      console.log("Fetching organization and project secrets...");
+      let anthropicApiKey: string | undefined;
+      let projectEnvVars: Record<string, string> | undefined;
+
+      try {
+        // Fetch org's Anthropic API key
+        const orgApiKey = await ctx.runAction(
+          api.settings.getAnthropicApiKeyDecrypted,
+          {
+            orgId: identity.orgId,
+          },
+        );
+        if (orgApiKey) {
+          anthropicApiKey = orgApiKey;
+          console.log("✓ Anthropic API key found for organization");
+        } else {
+          console.log("ℹ No Anthropic API key configured for organization");
+          // Fallback to Convex env var
+          if (process.env.ANTHROPIC_API_KEY) {
+            anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+            console.log("✓ Using Anthropic API key from Convex environment");
+          }
+        }
+
+        // Fetch project environment variables
+        const envVars = await ctx.runAction(
+          api.variables.getAllDecrypted,
+          {
+            projectId: branch.projectId,
+          },
+        );
+        if (Object.keys(envVars).length > 0) {
+          projectEnvVars = envVars;
+          console.log(
+            `✓ ${Object.keys(envVars).length} project environment variables loaded`,
+          );
+        } else {
+          console.log("ℹ No project environment variables configured");
+        }
+      } catch (secretError) {
+        console.warn(
+          "⚠️ Failed to load secrets, continuing without them:",
+          secretError,
+        );
+        // Still try to use Convex env var as fallback
+        if (process.env.ANTHROPIC_API_KEY) {
+          anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+          console.log(
+            "✓ Using Anthropic API key from Convex environment (fallback)",
+          );
+        }
+      }
+
+      // Step 17: Update stage to "starting"
       await ctx.runMutation(api.branches.updateBranchSandboxStage, {
         branchId: args.branchId,
         stage: "starting",
       });
 
-      // Step 17: Start dev server in Daytona session
+      // Step 18: Start dev server in Daytona session
       console.log(
         "Starting dev server in session:",
         project.settings.devCommand,
@@ -273,11 +338,20 @@ export const startSandbox = action({
       const devSessionId = `dev-server-${Date.now()}`;
       await sandbox.process.createSession(devSessionId);
 
+      // Build dev command with environment variables
+      let devCommand = `cd ${workDir}/project && ${project.settings.devCommand}`;
+      if (projectEnvVars && Object.keys(projectEnvVars).length > 0) {
+        const { buildEnvExports } = await import("./lib/workerBundle");
+        const envExports = buildEnvExports(projectEnvVars);
+        devCommand = `${envExports} && ${devCommand}`;
+        console.log(`Dev server will run with ${Object.keys(projectEnvVars).length} environment variables`);
+      }
+
       // Execute dev command asynchronously in the session
       const devResult = await sandbox.process.executeSessionCommand(
         devSessionId,
         {
-          command: `cd ${workDir}/project && ${project.settings.devCommand}`,
+          command: devCommand,
           runAsync: true, // Run in background
         },
       );
@@ -328,56 +402,18 @@ export const startSandbox = action({
       });
       console.log("Stored sandbox domain and token");
 
-      // Step 18: Fetch and decrypt secrets for worker
-      console.log("Fetching organization and project secrets...");
-      let anthropicApiKey: string | undefined;
-      let projectEnvVars: Record<string, string> | undefined;
-
-      try {
-        // Fetch org's Anthropic API key
-        const orgApiKey = await ctx.runAction(api.organizationSettings.getAnthropicApiKeyDecrypted, {
-          orgId: identity.orgId,
-        });
-        if (orgApiKey) {
-          anthropicApiKey = orgApiKey;
-          console.log("✓ Anthropic API key found for organization");
-        } else {
-          console.log("ℹ No Anthropic API key configured for organization");
-          // Fallback to Convex env var
-          if (process.env.ANTHROPIC_API_KEY) {
-            anthropicApiKey = process.env.ANTHROPIC_API_KEY;
-            console.log("✓ Using Anthropic API key from Convex environment");
-          }
-        }
-
-        // Fetch project environment variables
-        const envVars = await ctx.runAction(api.projectEnvironmentVariables.getAllDecrypted, {
-          projectId: branch.projectId,
-        });
-        if (Object.keys(envVars).length > 0) {
-          projectEnvVars = envVars;
-          console.log(`✓ ${Object.keys(envVars).length} project environment variables loaded`);
-        } else {
-          console.log("ℹ No project environment variables configured");
-        }
-      } catch (secretError) {
-        console.warn("⚠️ Failed to load secrets, continuing without them:", secretError);
-        // Still try to use Convex env var as fallback
-        if (process.env.ANTHROPIC_API_KEY) {
-          anthropicApiKey = process.env.ANTHROPIC_API_KEY;
-          console.log("✓ Using Anthropic API key from Convex environment (fallback)");
-        }
-      }
-
       // Step 19: Install Claude Code CLI (required by Claude Agent SDK)
       console.log("Installing Claude Code CLI...");
       const claudeInstall = await sandbox.process.executeCommand(
         "npm install -g @anthropic-ai/claude-code 2>&1",
-        `${workDir}/project`
+        `${workDir}/project`,
       );
 
       if (claudeInstall.exitCode !== 0) {
-        console.warn("⚠️ Claude Code CLI installation failed:", claudeInstall.result);
+        console.warn(
+          "⚠️ Claude Code CLI installation failed:",
+          claudeInstall.result,
+        );
       } else {
         console.log("✓ Claude Code CLI installed successfully");
       }
@@ -414,7 +450,6 @@ export const startSandbox = action({
               workerCommandId: workerResult.commandId,
             });
           }
-
         }
       }
 
@@ -531,6 +566,7 @@ export const restartSandbox = action({
 
       // Step 7: Get working directory
       const workDir = await sandbox.getWorkDir();
+      console.log("Working directory:", workDir);
 
       // Step 8: Update stage to "installing"
       await ctx.runMutation(api.branches.updateBranchSandboxStage, {
@@ -542,7 +578,7 @@ export const restartSandbox = action({
       console.log("Running install command:", project.settings.installCommand);
       const installResult = await sandbox.process.executeCommand(
         project.settings.installCommand,
-        `${workDir}/project`, // Set working directory for the command
+        `${workDir}/project`,
       );
 
       if (installResult.exitCode !== 0) {
@@ -706,14 +742,16 @@ export const getWorkerLogs = action({
       // Fetch worker logs from Daytona session
       const logsResponse = await sandbox.process.getSessionCommandLogs(
         branch.workerSessionId,
-        branch.workerCommandId
+        branch.workerCommandId,
       );
 
       // Combine stdout and stderr
       const combinedLogs = [
         logsResponse.stdout ? `[STDOUT]\n${logsResponse.stdout}` : "",
         logsResponse.stderr ? `[STDERR]\n${logsResponse.stderr}` : "",
-      ].filter(Boolean).join("\n\n");
+      ]
+        .filter(Boolean)
+        .join("\n\n");
 
       return {
         logs: combinedLogs || logsResponse.output || "(no output)",
