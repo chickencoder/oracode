@@ -24,6 +24,13 @@ class Logger {
       this.sandboxId = `fallback-${Date.now()}`;
     }
 
+    // Always log to console first
+    console.log("=== WORKER STARTING ===");
+    console.log("Process ID:", process.pid);
+    console.log("Sandbox ID:", this.sandboxId);
+    console.log("Node version:", process.version);
+    console.log("CWD:", process.cwd());
+
     // Create logs directory and file
     // Use /tmp/worker.log as expected by WorkerBundler.generateLogsCommand()
     try {
@@ -36,9 +43,10 @@ class Logger {
         sandboxId: this.sandboxId
       });
       writeFileSync(this.logFile, startupMessage + "\n");
+      console.log("✓ Log file created at:", this.logFile);
     } catch (error) {
       // Fallback to console logging if file logging fails
-      console.error("Failed to initialize file logging:", error);
+      console.error("✖ Failed to initialize file logging:", error);
       this.logFile = ""; // Disable file logging
     }
   }

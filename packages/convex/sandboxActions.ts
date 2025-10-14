@@ -402,23 +402,8 @@ export const startSandbox = action({
       });
       console.log("Stored sandbox domain and token");
 
-      // Step 19: Install Claude Code CLI (required by Claude Agent SDK)
-      console.log("Installing Claude Code CLI...");
-      const claudeInstall = await sandbox.process.executeCommand(
-        "npm install -g @anthropic-ai/claude-code 2>&1",
-        `${workDir}/project`,
-      );
-
-      if (claudeInstall.exitCode !== 0) {
-        console.warn(
-          "⚠️ Claude Code CLI installation failed:",
-          claudeInstall.result,
-        );
-      } else {
-        console.log("✓ Claude Code CLI installed successfully");
-      }
-
-      // Step 20: Inject sandbox worker
+      // Step 19: Inject sandbox worker
+      // Note: Claude Code CLI is pre-installed in the Docker image as a native binary
       console.log("Injecting sandbox worker...");
 
       const convexUrl = process.env.CONVEX_URL;
@@ -696,41 +681,26 @@ export const retrySandbox = action({
   },
 });
 
-// Action to get worker logs
+// Debug action to get worker logs
 export const getWorkerLogs = action({
   args: {
     branchId: v.id("branches"),
   },
   returns: v.object({
-    logs: v.string(),
     success: v.boolean(),
+    logs: v.string(),
     error: v.optional(v.string()),
   }),
-  handler: async (
-    ctx,
-    args: { branchId: Id<"branches"> },
-  ): Promise<{ logs: string; success: boolean; error?: string }> => {
-    console.log("=== getWorkerLogs action called ===");
-
+  handler: async (ctx, args) => {
     try {
-      // Get branch with session IDs
       const branch = await ctx.runQuery(api.branches.getBranchById, {
         branchId: args.branchId,
       });
 
-      if (!branch) {
-        throw new Error("Branch not found");
+      if (!branch?.sandboxId) {
+        throw new Error("No sandbox found");
       }
 
-      if (!branch.sandboxId) {
-        throw new Error("No sandbox found for this branch");
-      }
-
-      if (!branch.workerSessionId || !branch.workerCommandId) {
-        throw new Error("No worker session found for this branch");
-      }
-
-      // Connect to Daytona
       const daytona = new Daytona({
         apiKey: process.env.DAYTONA_API_KEY!,
         apiUrl: process.env.DAYTONA_API_URL || "https://app.daytona.io/api",
@@ -739,26 +709,78 @@ export const getWorkerLogs = action({
 
       const sandbox = await daytona.get(branch.sandboxId);
 
-      // Fetch worker logs from Daytona session
-      const logsResponse = await sandbox.process.getSessionCommandLogs(
-        branch.workerSessionId,
-        branch.workerCommandId,
+      // Get worker logs from file
+      const result = await sandbox.process.executeCommand(
+        "tail -n 100 /tmp/worker.log 2>&1 || echo 'No logs found'"
       );
 
-      // Combine stdout and stderr
-      const combinedLogs = [
-        logsResponse.stdout ? `[STDOUT]\n${logsResponse.stdout}` : "",
-        logsResponse.stderr ? `[STDERR]\n${logsResponse.stderr}` : "",
-      ]
-        .filter(Boolean)
-        .join("\n\n");
-
       return {
-        logs: combinedLogs || logsResponse.output || "(no output)",
         success: true,
+        logs: result.result || "No output",
       };
     } catch (error) {
       console.error("Failed to fetch worker logs:", error);
+      return {
+        logs: "",
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  },
+});
+
+// Action to get dev server logs
+export const getDevServerLogs = action({
+  args: {
+    branchId: v.id("branches"),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    logs: v.string(),
+    error: v.optional(v.string()),
+  }),
+  handler: async (
+    ctx,
+    args: { branchId: Id<"branches"> },
+  ): Promise<{ success: boolean; logs: string; error?: string }> => {
+    try {
+      const branch = await ctx.runQuery(api.branches.getBranchById, {
+        branchId: args.branchId,
+      });
+
+      if (!branch?.sandboxId) {
+        throw new Error("No sandbox found");
+      }
+
+      if (!branch.devSessionId || !branch.devCommandId) {
+        return {
+          success: true,
+          logs: "Dev server session not found or not started yet.",
+        };
+      }
+
+      const daytona = new Daytona({
+        apiKey: process.env.DAYTONA_API_KEY!,
+        apiUrl: process.env.DAYTONA_API_URL || "https://app.daytona.io/api",
+        target: (process.env.DAYTONA_TARGET || "eu") as "eu" | "us" | "asia",
+      });
+
+      const sandbox = await daytona.get(branch.sandboxId);
+
+      // Get dev server logs from session
+      const logsResponse = await sandbox.process.getSessionCommandLogs(
+        branch.devSessionId,
+        branch.devCommandId,
+      );
+
+      const logs: string = logsResponse.output || "No logs available";
+
+      return {
+        success: true,
+        logs,
+      };
+    } catch (error) {
+      console.error("Failed to fetch dev server logs:", error);
       return {
         logs: "",
         success: false,

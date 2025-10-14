@@ -111,26 +111,40 @@ async function processStreamingSession() {
 
         if (existingMessages.length > 0) {
           resumeSessionId = currentBranch.agentSessionId;
+          logger.info("Found existing session to resume", {
+            sessionId: resumeSessionId,
+            messageCount: existingMessages.length,
+          });
         }
       }
     } catch (error) {
-      // No previous branch found
+      logger.warn("Could not fetch previous branch", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
 
+    // Set environment variables that Claude Code might need
+    process.env.TERM = process.env.TERM || "xterm-256color";
+    process.env.COLORTERM = "truecolor";
+
     const queryOptions: Options = {
-      permissionMode: "bypassPermissions",
+      permissionMode: "default", // Changed from "bypassPermissions" - Claude Code refuses to run with bypass as root
       maxTurns: 50,
       model: "claude-sonnet-4-5-20250929",
       systemPrompt: { type: "preset", preset: "claude_code" },
       settingSources: [],
       includePartialMessages: true,
-      pathToClaudeCodeExecutable: "/usr/local/bin/claude",
       ...(resumeSessionId && { resume: resumeSessionId }),
     };
 
     if (resumeSessionId) {
       streamingState.currentSessionId = resumeSessionId;
     }
+
+    logger.info("Initializing Claude Agent SDK with streaming input", {
+      resuming: !!resumeSessionId,
+      model: "claude-sonnet-4-5-20250929",
+    });
 
     const claudeQuery = query({
       prompt: generateUserMessages(),
@@ -246,7 +260,6 @@ async function processStreamingSession() {
           );
           currentAssistantMessageId = null;
           currentMessageChunks = [];
-          currentUserMessageId = null;
         }
       } else if (message.type === "system") {
         if (message.subtype === "init" && message.session_id) {
@@ -256,6 +269,9 @@ async function processStreamingSession() {
             await client.mutation(api.branches.updateBranchWithAgentId, {
               branchId: branchId,
               agentSessionId: message.session_id,
+            });
+            logger.info("Saved session ID to branch", {
+              sessionId: message.session_id,
             });
           } catch (error) {
             logger.error(
@@ -267,91 +283,102 @@ async function processStreamingSession() {
       }
     }
 
-    sessionOperation.success("Streaming session completed");
+    sessionOperation.success("Streaming session ended");
   } catch (error) {
+    logger.error("Streaming session error", error as Error, {
+      errorName: error instanceof Error ? error.name : "unknown",
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorCode: (error as any)?.code,
+      errorStack: error instanceof Error ? error.stack : undefined,
+    });
+
     sessionOperation.error("Streaming session failed", error as Error);
-
-    try {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-
-      await client.mutation(api.messages.upsertAssistantMessage, {
-        id: uuidv4(),
-        parts: [
-          {
-            type: "text",
-            text: `I encountered an error: ${errorMessage}. Please try again.`,
-          },
-        ],
-        metadata: {
-          error: true,
-          errorMessage,
-          processingTime: Date.now(),
-          isCompleted: true,
-        },
-        branchId: branchId,
-      });
-    } catch (insertError) {
-      logger.error("Failed to insert error message", insertError as Error);
-    }
   } finally {
     streamingState.isStreamingSessionActive = false;
+
+    if (streamingState.messageQueue.length > 0) {
+      logger.info("Processing queued messages after session end");
+      processStreamingSession().catch((error) => {
+        logger.error("Failed to restart streaming session", error as Error);
+      });
+    }
   }
 }
 
 async function updateAssistantMessage(
-  assistantMessageId: string,
-  messageChunks: Array<TextBlock | ToolUseBlock>,
-  userMessageId: string | null,
-  isCompleted: boolean,
+  messageId: string,
+  parts: Array<TextBlock | ToolUseBlock>,
+  inReplyToId: string | null,
+  finalized: boolean,
 ) {
   try {
-    const parts = JSON.parse(JSON.stringify(messageChunks));
-
     await client.mutation(api.messages.upsertAssistantMessage, {
-      id: assistantMessageId,
-      parts,
-      metadata: {
-        processingTime: Date.now(),
-        userMessageId,
-        isCompleted,
-      },
-      branchId: branchId as any,
+      id: messageId,
+      parts: parts,
+      branchId: branchId,
     });
   } catch (error) {
-    logger.error("Failed to update assistant message", error as Error);
+    logger.error("Failed to update assistant message", error as Error, {
+      messageId,
+      partCount: parts.length,
+      finalized,
+    });
   }
 }
 
 async function finalizeAssistantMessage(
-  assistantMessageId: string,
-  messageChunks: Array<TextBlock | ToolUseBlock>,
-  userMessageId: string | null,
+  messageId: string,
+  parts: Array<TextBlock | ToolUseBlock>,
+  inReplyToId: string | null,
 ) {
-  await updateAssistantMessage(
-    assistantMessageId,
-    messageChunks,
-    userMessageId,
-    true,
-  );
+  await updateAssistantMessage(messageId, parts, inReplyToId, true);
+  logger.info("Finalized assistant message", {
+    messageId,
+    partCount: parts.length,
+    inReplyToId,
+  });
 }
 
 async function processUserMessage(userMessage: UserMessage | null) {
-  if (!userMessage || !userMessage.parts || !Array.isArray(userMessage.parts)) {
+  if (
+    !userMessage ||
+    !userMessage.parts ||
+    !Array.isArray(userMessage.parts)
+  ) {
+    logger.debug("Skipping invalid message", {
+      hasMessage: !!userMessage,
+      hasParts: !!userMessage?.parts,
+      isArray: Array.isArray(userMessage?.parts),
+    });
     return;
   }
 
+  logger.info("Processing user message", {
+    messageId: userMessage.id,
+    isProcessing: streamingState.isStreamingSessionActive,
+  });
+
+  // If already processing a message, queue this one
+  if (streamingState.isStreamingSessionActive) {
+    logger.debug("Already processing a message, queueing");
+    streamingState.messageQueue.push(userMessage);
+    return;
+  }
+
+  // Add to queue and start processing
+  streamingState.messageQueue.push(userMessage);
+
+  // Resolve any pending message queue resolver
   if (streamingState.messageQueueResolver) {
     const resolver = streamingState.messageQueueResolver;
     streamingState.messageQueueResolver = null;
     resolver(userMessage);
-  } else {
-    streamingState.messageQueue.push(userMessage);
   }
 
+  // Start streaming session if not active
   if (!streamingState.isStreamingSessionActive) {
     processStreamingSession().catch((error) => {
-      logger.error("Streaming session failed", error as Error);
+      logger.error("Failed to start streaming session", error as Error);
     });
   }
 }
@@ -360,53 +387,59 @@ const streamingState: StreamingState = {
   hasInitialized: false,
   lastSeenMessageId: null,
   messageQueue: [],
-  messageQueueResolver: null,
   isStreamingSessionActive: false,
-  currentProcessingMessage: null,
   currentSessionId: null,
+  currentProcessingMessage: null,
+  messageQueueResolver: null,
 };
 
+// Subscribe to messages from Convex
 client.onUpdate(
   api.messages.getLastUserMessage,
   { branchId },
   (userMessage) => {
+    logger.debug("Convex update received", {
+      hasMessage: !!userMessage,
+      messageId: userMessage?.id,
+      isInitialized: streamingState.hasInitialized,
+      lastSeenId: streamingState.lastSeenMessageId,
+    });
+
     if (userMessage) {
       if (!streamingState.hasInitialized) {
+        logger.info("First message received, initializing state", {
+          messageId: userMessage.id,
+        });
         streamingState.lastSeenMessageId = userMessage.id;
         streamingState.hasInitialized = true;
         return;
       }
 
       if (streamingState.lastSeenMessageId === userMessage.id) {
+        logger.debug("Message already processed, skipping", {
+          messageId: userMessage.id,
+        });
         return;
       }
 
+      logger.info("New user message detected", {
+        messageId: userMessage.id,
+        previousId: streamingState.lastSeenMessageId,
+      });
       streamingState.lastSeenMessageId = userMessage.id;
       processUserMessage(userMessage).catch((error) => {
         logger.error("Error processing message", error as Error);
       });
     } else {
       if (!streamingState.hasInitialized) {
+        logger.info("No messages yet, initializing as empty");
         streamingState.hasInitialized = true;
       }
     }
   },
 );
 
-async function shutdown(signal: string): Promise<void> {
-  const shutdownOp = logger.operation("shutdown", { signal });
-
-  try {
-    client.close();
-    shutdownOp.success("Shutdown completed");
-    process.exit(0);
-  } catch (error) {
-    shutdownOp.error("Shutdown failed", error as Error);
-    process.exit(1);
-  }
-}
-
-process.on("SIGINT", () => shutdown("SIGINT"));
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-
-logger.info("Sandbox worker ready", { status: "listening" });
+logger.info("Worker subscribed to messages", {
+  branchId,
+  sandboxId,
+});

@@ -15,8 +15,8 @@ export interface StreamingState {
   hasInitialized: boolean;
   lastSeenMessageId: string | null;
   messageQueue: UserMessage[];
-  messageQueueResolver: ((value: UserMessage | null) => void) | null;
   isStreamingSessionActive: boolean;
-  currentProcessingMessage: UserMessage | null;
   currentSessionId: string | null;
+  currentProcessingMessage: UserMessage | null;
+  messageQueueResolver: ((message: UserMessage | null) => void) | null;
 }

@@ -63,6 +63,7 @@ export function BranchPage() {
           isCreating={isCreating}
           loadingStage={loadingStage}
           onRetry={retrySandbox}
+          branchId={branchId as Id<"branches">}
         />
       </div>
     </div>

@@ -68,16 +68,10 @@ export function buildEnvExports(envVars: Record<string, string>): string {
 export function getStartCommand(envVars: Record<string, string>): string {
   const envExports = buildEnvExports(envVars);
 
-  // Run worker directly in session (no nohup, no redirection)
-  // This allows Daytona session to capture stdout/stderr
-  return `${envExports} && export NODE_PATH=$(npm root -g):$NODE_PATH && node /tmp/sandbox-worker.js`;
+  // Run worker in background, redirect stdout/stderr to log file for debugging
+  // Also tee to session so Daytona can capture it
+  return `${envExports} && export NODE_PATH=$(npm root -g):$NODE_PATH && node /tmp/sandbox-worker.js > >(tee -a /tmp/worker.log) 2>&1 & echo $! > /tmp/worker.pid`;
 }
 
-export const STOP_COMMAND =
-  "if [ -f /tmp/worker.pid ]; then kill $(cat /tmp/worker.pid) 2>/dev/null; rm -f /tmp/worker.pid; fi";
-
-export const STATUS_COMMAND =
-  "if [ -f /tmp/worker.pid ] && kill -0 $(cat /tmp/worker.pid) 2>/dev/null; then echo 'running'; else echo 'stopped'; fi";
-
 export const LOGS_COMMAND =
-  "if [ -f /tmp/worker.log ]; then tail -n 50 /tmp/worker.log; else echo 'No worker logs found'; fi";
+  "if [ -f /tmp/worker.log ]; then tail -n 100 /tmp/worker.log; else echo 'No worker logs found'; fi";

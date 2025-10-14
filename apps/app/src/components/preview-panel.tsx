@@ -10,13 +10,26 @@ import {
 import {
   ArrowLeft,
   ArrowRight,
-  ExternalLinkIcon,
   Loader,
   RefreshCcwIcon,
+  MoreVertical,
+  FileText,
+  RotateCw,
 } from "lucide-react";
 import { useRef, useState, useEffect } from "react";
+import { useAction } from "convex/react";
+import { api } from "@repo/convex/_generated/api";
+import type { Id } from "@repo/convex/_generated/dataModel";
 import { Alert, AlertTitle, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { LogsDialog } from "./logs-dialog";
+import { toast } from "sonner";
 interface PreviewPanelProps {
   domain: string;
   hasError: boolean;
@@ -24,6 +37,7 @@ interface PreviewPanelProps {
   isCreating: boolean;
   loadingStage?: "provisioning" | "cloning" | "installing" | "starting";
   onRetry: () => void;
+  branchId: Id<"branches">;
 }
 
 export function PreviewPanel({
@@ -33,14 +47,36 @@ export function PreviewPanel({
   isCreating,
   loadingStage,
   onRetry,
+  branchId,
 }: PreviewPanelProps) {
   const [isIframeLoading, setIsIframeLoading] = useState(!!domain);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [isLogsDialogOpen, setIsLogsDialogOpen] = useState(false);
+  const [isRestarting, setIsRestarting] = useState(false);
+
+  const restartSandboxAction = useAction(api.sandboxActions.restartSandbox);
 
   const handleRetry = () => {
     setIsRetrying(true);
     onRetry();
+  };
+
+  const handleRestartSandbox = async () => {
+    setIsRestarting(true);
+    try {
+      await restartSandboxAction({ branchId });
+      toast.success("Sandbox restarted successfully");
+      // Refresh the iframe after restart
+      handleRefresh();
+    } catch (error) {
+      console.error("Failed to restart sandbox:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to restart sandbox"
+      );
+    } finally {
+      setIsRestarting(false);
+    }
   };
 
   // Update loading state when domain changes
@@ -93,12 +129,26 @@ export function PreviewPanel({
             <RefreshCcwIcon className="w-4 h-4" />
           </WebPreviewNavigationButton>
           <WebPreviewUrl value={domain} />
-          <WebPreviewNavigationButton
-            tooltip="Open in new tab"
-            onClick={() => window.open(domain, "_blank")}
-          >
-            <ExternalLinkIcon className="w-4 h-4" />
-          </WebPreviewNavigationButton>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <WebPreviewNavigationButton tooltip="More options">
+                <MoreVertical className="w-4 h-4" />
+              </WebPreviewNavigationButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setIsLogsDialogOpen(true)}>
+                <FileText className="w-4 h-4 mr-2" />
+                View logs
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleRestartSandbox}
+                disabled={isRestarting}
+              >
+                <RotateCw className="w-4 h-4 mr-2" />
+                {isRestarting ? "Restarting..." : "Restart sandbox"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </WebPreviewNavigation>
         <div className="relative flex-1 flex flex-col">
           {showSandboxLoading && (
@@ -135,6 +185,11 @@ export function PreviewPanel({
           />
         </div>
       </WebPreview>
+      <LogsDialog
+        open={isLogsDialogOpen}
+        onOpenChange={setIsLogsDialogOpen}
+        branchId={branchId}
+      />
     </div>
   );
 }

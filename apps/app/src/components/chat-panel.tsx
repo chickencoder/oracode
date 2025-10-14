@@ -104,7 +104,7 @@ export function ChatPanel({ branchId, isSandboxReady }: ChatPanelProps) {
   return (
     <div className="w-96 flex flex-col min-h-0">
       <Conversation className="flex-1 min-h-0">
-        <ConversationContent className="pl-2 pr-4">
+        <ConversationContent className="pl-2 pr-4 pt-0">
           <MessageRenderer
             messages={displayMessages}
             currentUser={currentUser}
