@@ -13,6 +13,7 @@ export interface WorkerOptions {
   clerkToken: string;
   anthropicApiKey?: string; // Decrypted Anthropic API key from org settings
   projectEnvVars?: Record<string, string>; // Decrypted project environment variables
+  projectRoot?: string; // Full path to project root directory (e.g., /home/oracode/project/apps/frontend)
 }
 
 export interface ServiceResult {

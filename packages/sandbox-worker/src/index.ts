@@ -33,10 +33,25 @@ if (!process.env.CLERK_TOKEN) {
   process.exit(1);
 }
 
+// Change to project root directory if specified
+if (process.env.PROJECT_ROOT) {
+  try {
+    process.chdir(process.env.PROJECT_ROOT);
+    logger.info("Changed working directory to project root", {
+      projectRoot: process.env.PROJECT_ROOT,
+    });
+  } catch (error) {
+    logger.error("Failed to change to project root directory", error as Error, {
+      projectRoot: process.env.PROJECT_ROOT,
+    });
+  }
+}
+
 logger.info("Starting sandbox worker", {
   nodeVersion: process.version,
   platform: process.platform,
   cwd: process.cwd(),
+  projectRoot: process.env.PROJECT_ROOT,
   convexUrl: process.env.CONVEX_URL?.substring(0, 50) + "...",
   sandboxId: process.env.SANDBOX_ID,
   branchId: process.env.BRANCH_ID,

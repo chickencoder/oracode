@@ -118,6 +118,7 @@ export default defineSchema({
       installCommand: v.string(), // Command to install dependencies
       devCommand: v.string(), // Command to run dev server
       port: v.number(), // Port the dev server runs on
+      projectRoot: v.optional(v.string()), // Optional subdirectory path within repo (e.g., "apps/frontend" for monorepos)
     }),
     createdAt: v.number(),
   }).index("by_org", ["orgId"]),

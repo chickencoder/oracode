@@ -210,6 +210,12 @@ export const startSandbox = action({
       const workDir = await sandbox.getWorkDir();
       console.log("Working directory:", workDir);
 
+      // Calculate project root path (includes optional subdirectory)
+      const projectRoot = project.settings.projectRoot
+        ? `${workDir}/project/${project.settings.projectRoot}`
+        : `${workDir}/project`;
+      console.log("Project root (where agent will run):", projectRoot);
+
       // Step 13: Clone repository using Daytona's Git API
       console.log("Cloning repository:", cloneUrl);
       console.log("Into directory:", `${workDir}/project`);
@@ -253,7 +259,7 @@ export const startSandbox = action({
       console.log("Running install command:", project.settings.installCommand);
       const installResult = await sandbox.process.executeCommand(
         project.settings.installCommand,
-        `${workDir}/project`,
+        projectRoot,
       );
 
       console.log("Install result:", {
@@ -339,7 +345,7 @@ export const startSandbox = action({
       await sandbox.process.createSession(devSessionId);
 
       // Build dev command with environment variables
-      let devCommand = `cd ${workDir}/project && ${project.settings.devCommand}`;
+      let devCommand = `cd ${projectRoot} && ${project.settings.devCommand}`;
       if (projectEnvVars && Object.keys(projectEnvVars).length > 0) {
         const { buildEnvExports } = await import("./lib/workerBundle");
         const envExports = buildEnvExports(projectEnvVars);
@@ -417,6 +423,7 @@ export const startSandbox = action({
           clerkToken,
           anthropicApiKey,
           projectEnvVars,
+          projectRoot: projectRoot,
         });
 
         if (!workerResult.success) {
@@ -553,6 +560,12 @@ export const restartSandbox = action({
       const workDir = await sandbox.getWorkDir();
       console.log("Working directory:", workDir);
 
+      // Calculate project root path (includes optional subdirectory)
+      const projectRoot = project.settings.projectRoot
+        ? `${workDir}/project/${project.settings.projectRoot}`
+        : `${workDir}/project`;
+      console.log("Project root (where agent will run):", projectRoot);
+
       // Step 8: Update stage to "installing"
       await ctx.runMutation(api.branches.updateBranchSandboxStage, {
         branchId: args.branchId,
@@ -563,7 +576,7 @@ export const restartSandbox = action({
       console.log("Running install command:", project.settings.installCommand);
       const installResult = await sandbox.process.executeCommand(
         project.settings.installCommand,
-        `${workDir}/project`,
+        projectRoot,
       );
 
       if (installResult.exitCode !== 0) {
@@ -591,7 +604,7 @@ export const restartSandbox = action({
       const devResult = await sandbox.process.executeSessionCommand(
         devSessionId,
         {
-          command: `cd ${workDir}/project && ${project.settings.devCommand}`,
+          command: `cd ${projectRoot} && ${project.settings.devCommand}`,
           runAsync: true,
         },
       );

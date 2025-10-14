@@ -30,6 +30,7 @@ const formSchema = z.object({
   installCommand: z.string().min(1, "Install command is required"),
   devCommand: z.string().min(1, "Development command is required"),
   port: z.number().min(1).max(65535, "Port must be between 1 and 65535"),
+  projectRoot: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -50,6 +51,7 @@ export function DevelopmentSettingsPage() {
       installCommand: "npm install",
       devCommand: "npm run dev",
       port: 3000,
+      projectRoot: "",
     },
   });
 
@@ -60,6 +62,7 @@ export function DevelopmentSettingsPage() {
         installCommand: project.settings.installCommand,
         devCommand: project.settings.devCommand,
         port: project.settings.port,
+        projectRoot: project.settings.projectRoot || "",
       });
     }
   }, [project, form]);
@@ -76,6 +79,7 @@ export function DevelopmentSettingsPage() {
           installCommand: values.installCommand,
           devCommand: values.devCommand,
           port: values.port,
+          projectRoot: values.projectRoot || undefined,
         },
       });
 
@@ -159,6 +163,23 @@ export function DevelopmentSettingsPage() {
                           onChange={(e) => field.onChange(Number(e.target.value))}
                         />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="projectRoot"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Project Root (optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="apps/frontend" {...field} />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">
+                        Subdirectory within the repository where the agent should operate. Leave empty for repository root. Useful for monorepos.
+                      </p>
                       <FormMessage />
                     </FormItem>
                   )}

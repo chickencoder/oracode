@@ -23,6 +23,7 @@ export function getWorkerEnv(options: {
   clerkToken: string;
   anthropicApiKey?: string;
   projectEnvVars?: Record<string, string>;
+  projectRoot?: string;
 }): Record<string, string> {
   // Base environment variables for the worker
   const baseEnv: Record<string, string> = {
@@ -33,6 +34,11 @@ export function getWorkerEnv(options: {
     ANTHROPIC_API_KEY: options.anthropicApiKey || process.env.ANTHROPIC_API_KEY || "",
     CLERK_TOKEN: options.clerkToken,
   };
+
+  // Add project root if specified
+  if (options.projectRoot) {
+    baseEnv.PROJECT_ROOT = options.projectRoot;
+  }
 
   // Merge in project-specific environment variables
   if (options.projectEnvVars) {
