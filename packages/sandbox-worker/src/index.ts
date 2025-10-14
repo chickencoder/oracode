@@ -358,10 +358,17 @@ async function processUserMessage(userMessage: UserMessage | null) {
     isProcessing: streamingState.isStreamingSessionActive,
   });
 
-  // If already processing a message, queue this one
+  // If already processing a message, queue this one and resolve the queue if generator is waiting
   if (streamingState.isStreamingSessionActive) {
     logger.debug("Already processing a message, queueing");
     streamingState.messageQueue.push(userMessage);
+
+    // If the generator is waiting for a message, resolve it
+    if (streamingState.messageQueueResolver) {
+      const resolver = streamingState.messageQueueResolver;
+      streamingState.messageQueueResolver = null;
+      resolver(userMessage);
+    }
     return;
   }
 

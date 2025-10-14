@@ -10,7 +10,8 @@ import { Image } from "@daytonaio/sdk";
  * - pnpm package manager
  * - Claude Code (installed via native installer to ~/.local/bin/claude)
  * - Claude Agent SDK and Anthropic SDK (installed globally via npm)
- * - Working directory set to /home/daytona
+ * - Custom "oracode" user with home directory /home/oracode
+ * - Working directory set to /home/oracode
  */
 export function buildOracodeImage() {
   return Image.base("node:22-slim")
@@ -20,6 +21,9 @@ export function buildOracodeImage() {
       "npm install -g pnpm@latest",
       // Install Claude Agent SDK, Claude Code, and Anthropic SDK globally via npm (latest versions)
       "npm install -g @anthropic-ai/claude-agent-sdk @anthropic-ai/claude-code @anthropic-ai/sdk",
+      // Create oracode user with home directory
+      "useradd -m -d /home/oracode -s /bin/bash oracode",
     )
-    .workdir("/home/daytona");
+    .dockerfileCommands(["USER oracode"])
+    .workdir("/home/oracode");
 }
