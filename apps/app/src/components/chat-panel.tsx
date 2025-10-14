@@ -30,10 +30,19 @@ import {
   PromptInputToolbar,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { MODELS } from "@/lib/constants";
 import { useOptimisticMessages } from "@/hooks/use-optimistic-messages";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { toast } from "sonner";
+import { Shield } from "lucide-react";
+import { PermissionCard } from "@/components/permission-card";
 
 interface ChatPanelProps {
   branchId: Id<"branches">;
@@ -50,6 +59,19 @@ export function ChatPanel({ branchId, isSandboxReady }: ChatPanelProps) {
     organization && isLoaded ? { branchId } : "skip",
   );
   const insertUserMessage = useMutation(api.messages.insertUserMessage);
+
+  // Permission mode
+  const permissionMode = useQuery(
+    api.permissions.getPermissionMode,
+    branchId ? { branchId } : "skip",
+  );
+  const setPermissionMode = useMutation(api.permissions.setPermissionMode);
+
+  // Pending permissions
+  const pendingPermissions = useQuery(
+    api.permissions.getPendingPermissions,
+    branchId ? { branchId } : "skip",
+  );
 
   const currentUser = useCurrentUser();
   const {
@@ -101,6 +123,20 @@ export function ChatPanel({ branchId, isSandboxReady }: ChatPanelProps) {
     }
   };
 
+  const handlePermissionModeChange = async (
+    mode: "default" | "acceptEdits" | "bypassPermissions",
+  ) => {
+    try {
+      await setPermissionMode({ branchId, mode });
+      toast.success(
+        `Permission mode set to ${mode === "default" ? "Ask First" : mode === "acceptEdits" ? "Auto-approve Edits" : "Allow All"}`,
+      );
+    } catch (error) {
+      console.error("Failed to update permission mode:", error);
+      toast.error("Failed to update permission mode");
+    }
+  };
+
   return (
     <div className="w-96 flex flex-col min-h-0">
       <Conversation className="flex-1 min-h-0">
@@ -112,6 +148,22 @@ export function ChatPanel({ branchId, isSandboxReady }: ChatPanelProps) {
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
+
+      {/* Permission cards - fixed above input */}
+      {pendingPermissions && pendingPermissions.length > 0 && (
+        <div className="pb-2 space-y-2 max-h-[300px] overflow-y-auto">
+          {pendingPermissions.map((permission) => (
+            <PermissionCard
+              key={permission.id}
+              id={permission.id}
+              toolName={permission.toolName}
+              toolInput={permission.toolInput}
+              requestedAt={permission.requestedAt}
+            />
+          ))}
+        </div>
+      )}
+
       <PromptInput
         className="bg-card"
         globalDrop
@@ -137,6 +189,23 @@ export function ChatPanel({ branchId, isSandboxReady }: ChatPanelProps) {
                 <PromptInputActionAddAttachments />
               </PromptInputActionMenuContent>
             </PromptInputActionMenu>
+            {/* Permission Mode Selector */}
+            <Select
+              value={permissionMode || "default"}
+              onValueChange={handlePermissionModeChange}
+            >
+              <SelectTrigger size="sm" className="w-fit gap-1.5">
+                <Shield className="size-3.5" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent side="top" align="start">
+                <SelectItem value="default">Ask First</SelectItem>
+                <SelectItem value="acceptEdits">Auto-approve Edits</SelectItem>
+                <SelectItem value="bypassPermissions">
+                  <span className="text-destructive">Allow All</span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
             <PromptInputModelSelect onValueChange={setModel} value={model}>
               <PromptInputModelSelectTrigger>
                 <PromptInputModelSelectValue />

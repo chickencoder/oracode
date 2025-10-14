@@ -22,6 +22,14 @@ export default defineSchema({
     branchName: v.string(),
     agentSessionId: v.optional(v.string()),
     createdAt: v.number(),
+    // Permission mode for Claude Agent SDK
+    permissionMode: v.optional(
+      v.union(
+        v.literal("default"), // Ask for permission (default)
+        v.literal("acceptEdits"), // Auto-approve file edits
+        v.literal("bypassPermissions"), // Bypass all permission checks
+      ),
+    ),
     // Sandbox fields (1:1 relationship)
     sandboxId: v.optional(v.string()), // Sandbox ID
     sandboxVolumeId: v.optional(v.string()), // Daytona Volume ID for persistent storage
@@ -55,6 +63,27 @@ export default defineSchema({
     workerSessionId: v.optional(v.string()), // Session for worker
     workerCommandId: v.optional(v.string()), // Command ID for worker
   }).index("by_project", ["projectId"]),
+
+  // Permission requests for tool use approval
+  pendingPermissions: defineTable({
+    id: v.string(), // UUID for tracking
+    branchId: v.id("branches"),
+    toolName: v.string(),
+    toolInput: v.any(), // Tool input parameters
+    status: v.union(
+      v.literal("pending"), // Awaiting user decision
+      v.literal("approved"), // User approved
+      v.literal("denied"), // User denied
+    ),
+    requestedAt: v.number(),
+    resolvedAt: v.optional(v.number()),
+    denialMessage: v.optional(v.string()),
+    orgId: v.string(),
+    userId: v.string(),
+  })
+    .index("by_branch", ["branchId"])
+    .index("by_branch_and_status", ["branchId", "status"])
+    .index("by_request_id", ["id"]),
 
   // GitHub App installation tracking
   githubInstallations: defineTable({

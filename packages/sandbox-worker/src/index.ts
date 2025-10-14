@@ -2,7 +2,11 @@ import { ConvexClient } from "convex/browser";
 import { api } from "@repo/convex/_generated/api";
 import type { Id } from "@repo/convex/_generated/dataModel";
 import { config } from "dotenv";
-import { query, type Options } from "@anthropic-ai/claude-agent-sdk";
+import {
+  query,
+  type Options,
+  type CanUseToolResponse,
+} from "@anthropic-ai/claude-agent-sdk";
 import type {
   TextBlock,
   ToolUseBlock,
@@ -50,6 +54,61 @@ client.setAuth(() => {
 
 const sandboxId = process.env.SANDBOX_ID || `sandbox-${Date.now()}`;
 const branchId = process.env.BRANCH_ID! as Id<"branches">;
+
+/**
+ * Wait for a permission request to be resolved by the user
+ * Polls Convex for status updates with timeout
+ */
+async function waitForPermissionResolution(
+  permissionId: string,
+  timeoutMs = 5 * 60 * 1000, // 5 minutes default
+): Promise<CanUseToolResponse> {
+  const startTime = Date.now();
+  const pollInterval = 500; // Poll every 500ms
+
+  while (Date.now() - startTime < timeoutMs) {
+    try {
+      const permission = await client.query(api.permissions.getPermissionById, {
+        id: permissionId,
+      });
+
+      if (permission && permission.status !== "pending") {
+        if (permission.status === "approved") {
+          logger.info("Permission approved by user", { permissionId });
+          return {
+            behavior: "allow",
+            updatedInput: permission.toolInput,
+          };
+        } else {
+          logger.info("Permission denied by user", {
+            permissionId,
+            message: permission.denialMessage,
+          });
+          return {
+            behavior: "deny",
+            message:
+              permission.denialMessage ||
+              "User denied permission for this tool",
+          };
+        }
+      }
+    } catch (error) {
+      logger.error("Error checking permission status", error as Error, {
+        permissionId,
+      });
+    }
+
+    // Wait before polling again
+    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+  }
+
+  // Timeout - deny by default
+  logger.warn("Permission request timed out", { permissionId });
+  return {
+    behavior: "deny",
+    message: "Permission request timed out",
+  };
+}
 
 async function* generateUserMessages() {
   while (true) {
@@ -123,17 +182,79 @@ async function processStreamingSession() {
       });
     }
 
+    // Get branch and org info for permission requests
+    const currentBranchForPermissions = await client.query(
+      api.branches.getBranchById,
+      { branchId: branchId },
+    );
+    const orgId = currentBranchForPermissions?._id || "";
+    const userId = "system"; // TODO: Get actual user ID from context
+
+    // Fetch initial permission mode from branch
+    let initialPermissionMode: "default" | "acceptEdits" | "bypassPermissions" =
+      "default";
+    try {
+      initialPermissionMode = await client.query(
+        api.permissions.getPermissionMode,
+        {
+          branchId: branchId,
+        },
+      );
+      logger.info("Using permission mode from branch", {
+        permissionMode: initialPermissionMode,
+      });
+    } catch (error) {
+      logger.warn("Could not fetch permission mode, using default", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
     // Set environment variables that Claude Code might need
     process.env.TERM = process.env.TERM || "xterm-256color";
     process.env.COLORTERM = "truecolor";
 
     const queryOptions: Options = {
-      permissionMode: "default", // Changed from "bypassPermissions" - Claude Code refuses to run with bypass as root
+      permissionMode: initialPermissionMode,
       maxTurns: 50,
       model: "claude-sonnet-4-5-20250929",
       systemPrompt: { type: "preset", preset: "claude_code" },
       settingSources: [],
       includePartialMessages: true,
+      canUseTool: async (toolName, input) => {
+        // This callback is invoked when Claude needs permission for a tool
+        // NOTE: This only fires when permission mode is "default" and no other rules match
+        logger.info("Permission requested for tool", { toolName, input });
+
+        const permissionId = uuidv4();
+
+        try {
+          // Create permission request in Convex
+          await client.mutation(api.permissions.createPermissionRequest, {
+            id: permissionId,
+            branchId: branchId,
+            toolName: toolName,
+            toolInput: input,
+            orgId: String(orgId),
+            userId: userId,
+          });
+
+          logger.info("Permission request created", { permissionId, toolName });
+
+          // Wait for user to approve/deny
+          const result = await waitForPermissionResolution(permissionId);
+
+          return result;
+        } catch (error) {
+          logger.error("Error handling permission request", error as Error, {
+            toolName,
+            permissionId,
+          });
+          return {
+            behavior: "deny",
+            message: "Error processing permission request",
+          };
+        }
+      },
       ...(resumeSessionId && { resume: resumeSessionId }),
     };
 
@@ -150,6 +271,26 @@ async function processStreamingSession() {
       prompt: generateUserMessages(),
       options: queryOptions,
     });
+
+    // Subscribe to permission mode changes and update dynamically
+    client.onUpdate(
+      api.permissions.getPermissionMode,
+      { branchId },
+      async (newMode) => {
+        if (newMode && newMode !== initialPermissionMode) {
+          logger.info("Permission mode changed, updating Claude SDK", {
+            oldMode: initialPermissionMode,
+            newMode,
+          });
+          try {
+            await claudeQuery.setPermissionMode(newMode);
+            initialPermissionMode = newMode;
+          } catch (error) {
+            logger.error("Failed to update permission mode", error as Error);
+          }
+        }
+      },
+    );
 
     let currentAssistantMessageId: string | null = null;
     let currentMessageChunks: Array<TextBlock | ToolUseBlock> = [];

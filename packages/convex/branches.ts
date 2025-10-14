@@ -42,6 +42,14 @@ export const getBranchById = query({
       branchName: v.string(),
       agentSessionId: v.optional(v.string()),
       createdAt: v.number(),
+      // Permission mode
+      permissionMode: v.optional(
+        v.union(
+          v.literal("default"),
+          v.literal("acceptEdits"),
+          v.literal("bypassPermissions"),
+        ),
+      ),
       // Sandbox fields
       sandboxId: v.optional(v.string()),
       sandboxVolumeId: v.optional(v.string()),
@@ -109,6 +117,14 @@ export const getBranchesByProject = query({
       branchName: v.string(),
       agentSessionId: v.optional(v.string()),
       createdAt: v.number(),
+      // Permission mode
+      permissionMode: v.optional(
+        v.union(
+          v.literal("default"),
+          v.literal("acceptEdits"),
+          v.literal("bypassPermissions"),
+        ),
+      ),
       // Sandbox fields
       sandboxId: v.optional(v.string()),
       sandboxVolumeId: v.optional(v.string()),
