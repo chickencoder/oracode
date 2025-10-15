@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { internal } from "./_generated/api";
 
 export const createBranch = mutation({
   args: {
@@ -66,6 +67,7 @@ export const getBranchById = query({
       sandboxDomain: v.optional(v.string()),
       sandboxPreviewToken: v.optional(v.string()),
       sandboxError: v.optional(v.string()),
+      sandboxAliveUntil: v.optional(v.number()),
       sandboxLoadingStage: v.optional(
         v.union(
           v.literal("provisioning"),
@@ -141,6 +143,7 @@ export const getBranchesByProject = query({
       sandboxDomain: v.optional(v.string()),
       sandboxPreviewToken: v.optional(v.string()),
       sandboxError: v.optional(v.string()),
+      sandboxAliveUntil: v.optional(v.number()),
       sandboxLoadingStage: v.optional(
         v.union(
           v.literal("provisioning"),
@@ -403,6 +406,7 @@ export const updateBranchSandboxReady = mutation({
     sandboxId: v.string(),
     domain: v.string(),
     previewToken: v.optional(v.string()),
+    aliveUntil: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -423,13 +427,19 @@ export const updateBranchSandboxReady = mutation({
       throw new Error("Not authorized to access this branch");
     }
 
-    await ctx.db.patch(args.branchId, {
+    const patchData: any = {
       sandboxId: args.sandboxId,
       sandboxDomain: args.domain,
       sandboxPreviewToken: args.previewToken,
       sandboxStatus: "ready",
       sandboxLoadingStage: undefined,
-    });
+    };
+
+    if (args.aliveUntil) {
+      patchData.sandboxAliveUntil = args.aliveUntil;
+    }
+
+    await ctx.db.patch(args.branchId, patchData);
 
     return null;
   },
@@ -522,6 +532,7 @@ export const updateBranchSandboxState = mutation({
       v.literal("stopped"),
       v.literal("archived"),
     ),
+    aliveUntil: v.optional(v.number()), // Optional: set when sandbox starts
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -542,9 +553,18 @@ export const updateBranchSandboxState = mutation({
       throw new Error("Not authorized to access this branch");
     }
 
-    await ctx.db.patch(args.branchId, {
+    const patchData: any = {
       sandboxState: args.state,
-    });
+    };
+
+    // Set aliveUntil if provided, otherwise clear it if stopped/archived
+    if (args.aliveUntil) {
+      patchData.sandboxAliveUntil = args.aliveUntil;
+    } else if (args.state === "stopped" || args.state === "archived") {
+      patchData.sandboxAliveUntil = undefined;
+    }
+
+    await ctx.db.patch(args.branchId, patchData);
 
     return null;
   },
@@ -606,6 +626,13 @@ export const deleteBranch = mutation({
     const project = await ctx.db.get(branch.projectId);
     if (!project || project.orgId !== orgId) {
       throw new Error("Not authorized to delete this branch");
+    }
+
+    // Delete sandbox if it exists (fire and forget - don't block on this)
+    if (branch.sandboxId) {
+      ctx.scheduler.runAfter(0, internal.sandboxActions.deleteSandbox, {
+        sandboxId: branch.sandboxId,
+      });
     }
 
     // Delete all messages for this branch

@@ -1,9 +1,9 @@
 "use node";
 
-import { v } from "convex/values";
-import { action } from "./_generated/server";
-import { api } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
+import { v, type Infer } from "convex/values";
+import { action, internalAction, type ActionCtx } from "./_generated/server";
+import { api, internal } from "./_generated/api";
+import type { Id, Doc } from "./_generated/dataModel";
 import { Daytona } from "@daytonaio/sdk";
 import ms from "ms";
 import {
@@ -194,7 +194,8 @@ export const startSandbox = action({
       await sandbox.setAutostopInterval(10);
       console.log("Auto-stop configured");
 
-      // Step 11: Store sandboxId and state
+      // Step 11: Store sandboxId and state with aliveUntil timestamp
+      const aliveUntil = Date.now() + ms("10m");
       await ctx.runMutation(api.branches.updateBranchSandbox, {
         branchId: args.branchId,
         sandboxId: sandboxId,
@@ -202,8 +203,9 @@ export const startSandbox = action({
       await ctx.runMutation(api.branches.updateBranchSandboxState, {
         branchId: args.branchId,
         state: "started",
+        aliveUntil,
       });
-      console.log("Stored sandbox ID and state");
+      console.log("Stored sandbox ID, state, and alive until:", new Date(aliveUntil).toISOString());
 
       // Step 12: Get working directory
       // (pnpm + Claude SDK are pre-installed in the declarative image)
@@ -629,13 +631,16 @@ export const restartSandbox = action({
       console.log("Sandbox domain:", domain);
       console.log("Preview token:", previewToken ? "present" : "none");
 
-      // Step 13: Update status back to "ready" and clear error
+      // Step 13: Update status back to "ready" and clear error, with aliveUntil timestamp
+      const aliveUntil = Date.now() + ms("10m");
       await ctx.runMutation(api.branches.updateBranchSandboxReady, {
         branchId: args.branchId,
         sandboxId: branch.sandboxId,
         domain,
         previewToken,
+        aliveUntil,
       });
+      console.log("Updated sandbox to ready state, alive until:", new Date(aliveUntil).toISOString());
 
       console.log("=== restartSandbox action complete ===");
 
@@ -742,6 +747,129 @@ export const getWorkerLogs = action({
   },
 });
 
+// Action to resume a stopped sandbox (lighter than restart - just starts it)
+export const resumeSandbox = action({
+  args: {
+    branchId: v.id("branches"),
+  },
+  returns: v.object({
+    sandboxId: v.string(),
+    domain: v.string(),
+    status: v.string(),
+  }),
+  handler: async (
+    ctx,
+    args: { branchId: Id<"branches"> },
+  ): Promise<{ sandboxId: string; domain: string; status: string }> => {
+    console.log("=== resumeSandbox action called ===");
+    console.log("Branch ID:", args.branchId);
+
+    try {
+      // Step 1: Get auth and verify branch ownership
+      const identity = await ctx.auth.getUserIdentity();
+      if (!identity?.orgId || typeof identity.orgId !== "string") {
+        throw new Error("User must be authenticated with an organization");
+      }
+
+      // Step 2: Get existing sandbox from branch
+      const branch = await ctx.runQuery(api.branches.getBranchById, {
+        branchId: args.branchId,
+      });
+
+      if (!branch) {
+        throw new Error("Branch not found");
+      }
+
+      if (!branch.sandboxId) {
+        throw new Error("No sandbox found for this branch");
+      }
+
+      if (branch.sandboxState !== "stopped") {
+        console.log("Sandbox is not stopped, returning current state");
+        return {
+          sandboxId: branch.sandboxId,
+          domain: branch.sandboxDomain || "",
+          status: branch.sandboxStatus || "ready",
+        };
+      }
+
+      console.log("Resuming stopped sandbox:", branch.sandboxId);
+
+      // Step 3: Update status to "creating" (resuming)
+      await ctx.runMutation(api.branches.initBranchSandbox, {
+        branchId: args.branchId,
+      });
+
+      // Step 4: Reconnect to existing Sandbox
+      const daytona = new Daytona({
+        apiKey: process.env.DAYTONA_API_KEY!,
+        apiUrl: process.env.DAYTONA_API_URL || "https://app.daytona.io/api",
+        target: (process.env.DAYTONA_TARGET || "eu") as "eu" | "us" | "asia",
+      });
+
+      const sandbox = await daytona.get(branch.sandboxId);
+      console.log("Reconnected to sandbox");
+
+      // Step 5: Start the sandbox
+      console.log("Starting sandbox...");
+      await sandbox.start();
+      await sandbox.waitUntilStarted(0);
+      console.log("Sandbox started successfully");
+
+      // Update state to started with new aliveUntil timestamp (10 minutes from now)
+      const aliveUntil = Date.now() + ms("10m");
+      await ctx.runMutation(api.branches.updateBranchSandboxState, {
+        branchId: args.branchId,
+        state: "started",
+        aliveUntil,
+      });
+      console.log("Updated sandbox state and alive until:", new Date(aliveUntil).toISOString());
+
+      // Step 6: Get domain (should still be available)
+      const domain = branch.sandboxDomain || "";
+      const previewToken = branch.sandboxPreviewToken || "";
+
+      // Step 7: Update status back to "ready" and clear error
+      // Note: aliveUntil already set above in updateBranchSandboxState
+      await ctx.runMutation(api.branches.updateBranchSandboxReady, {
+        branchId: args.branchId,
+        sandboxId: branch.sandboxId,
+        domain,
+        previewToken,
+      });
+
+      console.log("=== resumeSandbox action complete ===");
+
+      return {
+        sandboxId: branch.sandboxId,
+        domain,
+        status: "ready",
+      };
+    } catch (error) {
+      console.error("=== resumeSandbox action failed ===");
+      console.error("Error:", error);
+
+      // Update branch sandbox with error
+      try {
+        const branch = await ctx.runQuery(api.branches.getBranchById, {
+          branchId: args.branchId,
+        });
+        if (branch) {
+          await ctx.runMutation(api.branches.updateBranchSandboxError, {
+            branchId: args.branchId,
+            error:
+              error instanceof Error ? error.message : "Unknown error occurred",
+          });
+        }
+      } catch (updateError) {
+        console.error("Failed to update sandbox error status:", updateError);
+      }
+
+      throw error;
+    }
+  },
+});
+
 // Action to get dev server logs
 export const getDevServerLogs = action({
   args: {
@@ -796,6 +924,49 @@ export const getDevServerLogs = action({
       console.error("Failed to fetch dev server logs:", error);
       return {
         logs: "",
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  },
+});
+
+// Internal action to delete a sandbox (called when deleting a branch)
+export const deleteSandbox = internalAction({
+  args: {
+    sandboxId: v.string(),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    error: v.optional(v.string()),
+  }),
+  handler: async (
+    ctx,
+    args: { sandboxId: string },
+  ): Promise<{ success: boolean; error?: string }> => {
+    console.log("=== deleteSandbox action called ===");
+    console.log("Sandbox ID:", args.sandboxId);
+
+    try {
+      // Initialize Daytona SDK
+      const daytona = new Daytona({
+        apiKey: process.env.DAYTONA_API_KEY!,
+        apiUrl: process.env.DAYTONA_API_URL || "https://app.daytona.io/api",
+        target: (process.env.DAYTONA_TARGET || "eu") as "eu" | "us" | "asia",
+      });
+
+      // Get the sandbox
+      const sandbox = await daytona.get(args.sandboxId);
+      console.log("Found sandbox:", args.sandboxId);
+
+      // Delete the sandbox
+      await daytona.delete(sandbox);
+      console.log("Sandbox deleted successfully");
+
+      return { success: true };
+    } catch (error) {
+      console.error("Failed to delete sandbox:", error);
+      return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
       };

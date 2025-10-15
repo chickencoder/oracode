@@ -29,6 +29,7 @@ import type * as lib_variablesHelpers from "../lib/variablesHelpers.js";
 import type * as lib_workerBundle from "../lib/workerBundle.js";
 import type * as lib_workerBundleContent from "../lib/workerBundleContent.js";
 import type * as messages from "../messages.js";
+import type * as permissions from "../permissions.js";
 import type * as projects from "../projects.js";
 import type * as sandboxActions from "../sandboxActions.js";
 import type * as secrets from "../secrets.js";
@@ -61,6 +62,7 @@ declare const fullApi: ApiFromModules<{
   "lib/workerBundle": typeof lib_workerBundle;
   "lib/workerBundleContent": typeof lib_workerBundleContent;
   messages: typeof messages;
+  permissions: typeof permissions;
   projects: typeof projects;
   sandboxActions: typeof sandboxActions;
   secrets: typeof secrets;
