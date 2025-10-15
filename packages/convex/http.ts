@@ -2,6 +2,7 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { z } from "zod";
+import { Webhook } from "svix";
 
 // Zod schema for GitHub installation response
 const githubInstallationSchema = z.object({
@@ -147,6 +148,70 @@ http.route({
       await ctx.runMutation(internal.github.handleInstallationEvent, {
         action: payload.action,
         installation: payload.installation,
+      });
+    }
+
+    return new Response(null, { status: 200 });
+  }),
+});
+
+// Clerk webhook handler
+http.route({
+  path: "/clerk/webhook",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const webhookSecret = process.env.CLERK_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      console.error("CLERK_WEBHOOK_SECRET not configured");
+      return new Response("Server configuration error", { status: 500 });
+    }
+
+    // Get webhook headers
+    const svixId = request.headers.get("svix-id");
+    const svixTimestamp = request.headers.get("svix-timestamp");
+    const svixSignature = request.headers.get("svix-signature");
+
+    if (!svixId || !svixTimestamp || !svixSignature) {
+      return new Response("Missing svix headers", { status: 400 });
+    }
+
+    // Get raw body
+    const body = await request.text();
+
+    // Verify webhook signature
+    const wh = new Webhook(webhookSecret);
+    let payload: any;
+
+    try {
+      payload = wh.verify(body, {
+        "svix-id": svixId,
+        "svix-timestamp": svixTimestamp,
+        "svix-signature": svixSignature,
+      });
+    } catch (err) {
+      console.error("Webhook signature verification failed:", err);
+      return new Response("Invalid signature", { status: 401 });
+    }
+
+    // Handle user events
+    const eventType = payload.type;
+
+    if (eventType === "user.created" || eventType === "user.updated") {
+      const { id, email_addresses, first_name, last_name, image_url } = payload.data;
+
+      const primaryEmail = email_addresses?.find((e: any) => e.id === payload.data.primary_email_address_id);
+
+      if (!primaryEmail?.email_address) {
+        console.error("No primary email found for user:", id);
+        return new Response("No primary email", { status: 400 });
+      }
+
+      await ctx.runMutation(internal.users.upsertFromClerk, {
+        clerkId: id,
+        email: primaryEmail.email_address,
+        firstName: first_name || undefined,
+        lastName: last_name || undefined,
+        imageUrl: image_url || undefined,
       });
     }
 

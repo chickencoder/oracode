@@ -35,6 +35,7 @@ import type * as sandboxActions from "../sandboxActions.js";
 import type * as secrets from "../secrets.js";
 import type * as settings from "../settings.js";
 import type * as types from "../types.js";
+import type * as users from "../users.js";
 import type * as variables from "../variables.js";
 
 /**
@@ -68,6 +69,7 @@ declare const fullApi: ApiFromModules<{
   secrets: typeof secrets;
   settings: typeof settings;
   types: typeof types;
+  users: typeof users;
   variables: typeof variables;
 }>;
 export declare const api: FilterApi<

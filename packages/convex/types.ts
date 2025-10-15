@@ -37,9 +37,14 @@ export interface MessageData {
   role: "user" | "assistant" | "system";
   parts: UIMessagePart[];
   metadata?: AppMetadata;
-  sessionId: string;
+  sessionId?: string;
   userId: string;
   orgId: string;
+  user?: {
+    _id: string;
+    name: string;
+    imageUrl?: string;
+  };
 }
 
 // User info for displaying avatars and names

@@ -284,6 +284,13 @@ export const getMessagesByBranchId = query({
       branchId: v.id("branches"),
       userId: v.string(),
       orgId: v.string(),
+      user: v.optional(
+        v.object({
+          _id: v.id("users"),
+          name: v.string(),
+          imageUrl: v.optional(v.string()),
+        })
+      ),
     })
   ),
   handler: async (ctx, args) => {
@@ -304,12 +311,32 @@ export const getMessagesByBranchId = query({
       throw new Error("Not authorized to access this branch");
     }
 
-    return await ctx.db
+    const messages = await ctx.db
       .query("messages")
       .withIndex("by_org_and_branch", (q) =>
         q.eq("orgId", orgId).eq("branchId", args.branchId)
       )
       .order("asc")
       .collect();
+
+    // Join user data for each message
+    return await Promise.all(
+      messages.map(async (message) => {
+        // Look up user by clerkId (stored as userId in message)
+        const user = await ctx.db
+          .query("users")
+          .withIndex("by_clerk_id", (q) => q.eq("clerkId", message.userId))
+          .first();
+
+        return {
+          ...message,
+          user: user ? {
+            _id: user._id,
+            name: user.name,
+            imageUrl: user.imageUrl,
+          } : undefined,
+        };
+      })
+    );
   },
 });
