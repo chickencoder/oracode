@@ -24,6 +24,7 @@ import type * as lib_githubAuth from "../lib/githubAuth.js";
 import type * as lib_sandbox from "../lib/sandbox.js";
 import type * as lib_secretsHelpers from "../lib/secretsHelpers.js";
 import type * as lib_settingsHelpers from "../lib/settingsHelpers.js";
+import type * as lib_shellUtils from "../lib/shellUtils.js";
 import type * as lib_types from "../lib/types.js";
 import type * as lib_variablesHelpers from "../lib/variablesHelpers.js";
 import type * as lib_workerBundle from "../lib/workerBundle.js";
@@ -58,6 +59,7 @@ declare const fullApi: ApiFromModules<{
   "lib/sandbox": typeof lib_sandbox;
   "lib/secretsHelpers": typeof lib_secretsHelpers;
   "lib/settingsHelpers": typeof lib_settingsHelpers;
+  "lib/shellUtils": typeof lib_shellUtils;
   "lib/types": typeof lib_types;
   "lib/variablesHelpers": typeof lib_variablesHelpers;
   "lib/workerBundle": typeof lib_workerBundle;

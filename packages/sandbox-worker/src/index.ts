@@ -207,7 +207,7 @@ async function processStreamingSession() {
 
     // Fetch initial permission mode from branch
     let initialPermissionMode: "default" | "acceptEdits" | "bypassPermissions" =
-      "default";
+      "bypassPermissions";
     try {
       initialPermissionMode = await client.query(
         api.permissions.getPermissionMode,
@@ -219,7 +219,7 @@ async function processStreamingSession() {
         permissionMode: initialPermissionMode,
       });
     } catch (error) {
-      logger.warn("Could not fetch permission mode, using default", {
+      logger.warn("Could not fetch permission mode, using bypassPermissions", {
         error: error instanceof Error ? error.message : String(error),
       });
     }

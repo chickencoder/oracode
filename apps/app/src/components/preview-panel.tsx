@@ -35,6 +35,7 @@ interface PreviewPanelProps {
   hasError: boolean;
   error?: string;
   isCreating: boolean;
+  isReady: boolean;
   loadingStage?: "provisioning" | "cloning" | "installing" | "starting";
   onRetry: () => void;
   branchId: Id<"branches">;
@@ -45,6 +46,7 @@ export function PreviewPanel({
   hasError,
   error,
   isCreating,
+  isReady,
   loadingStage,
   onRetry,
   branchId,
@@ -91,7 +93,7 @@ export function PreviewPanel({
     setIsIframeLoading(false);
   };
 
-  const showSandboxLoading = !domain && !hasError;
+  const showSandboxLoading = !isReady && !hasError;
   const loadingMessage = loadingStage
     ? {
         provisioning: "Provisioning sandbox...",

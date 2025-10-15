@@ -604,6 +604,127 @@ export const updateBranchSandboxError = mutation({
   },
 });
 
+// Public query to get branch by ID without auth (for proxy service)
+// Note: This is intentionally public to allow the proxy service to access it
+export const getBranchByIdPublic = query({
+  args: {
+    branchId: v.id("branches"),
+  },
+  returns: v.union(
+    v.object({
+      _id: v.id("branches"),
+      _creationTime: v.number(),
+      projectId: v.id("projects"),
+      branchName: v.string(),
+      agentSessionId: v.optional(v.string()),
+      createdAt: v.number(),
+      permissionMode: v.optional(
+        v.union(
+          v.literal("default"),
+          v.literal("acceptEdits"),
+          v.literal("bypassPermissions"),
+        ),
+      ),
+      sandboxId: v.optional(v.string()),
+      sandboxVolumeId: v.optional(v.string()),
+      sandboxStatus: v.optional(
+        v.union(v.literal("creating"), v.literal("ready"), v.literal("error")),
+      ),
+      sandboxState: v.optional(
+        v.union(
+          v.literal("started"),
+          v.literal("stopped"),
+          v.literal("archived"),
+        ),
+      ),
+      sandboxDomain: v.optional(v.string()),
+      sandboxPreviewToken: v.optional(v.string()),
+      sandboxError: v.optional(v.string()),
+      sandboxAliveUntil: v.optional(v.number()),
+      sandboxLoadingStage: v.optional(
+        v.union(
+          v.literal("provisioning"),
+          v.literal("installing"),
+          v.literal("starting"),
+        ),
+      ),
+      devSessionId: v.optional(v.string()),
+      devCommandId: v.optional(v.string()),
+      workerSessionId: v.optional(v.string()),
+      workerCommandId: v.optional(v.string()),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    // No auth check - this is intentionally public for the proxy service
+    const branch = await ctx.db.get(args.branchId);
+    return branch || null;
+  },
+});
+
+// Get branch by project and branch name
+export const getBranchByProjectAndName = query({
+  args: {
+    projectId: v.id("projects"),
+    branchName: v.string(),
+  },
+  returns: v.union(
+    v.object({
+      _id: v.id("branches"),
+      _creationTime: v.number(),
+      projectId: v.id("projects"),
+      branchName: v.string(),
+      agentSessionId: v.optional(v.string()),
+      createdAt: v.number(),
+      permissionMode: v.optional(
+        v.union(
+          v.literal("default"),
+          v.literal("acceptEdits"),
+          v.literal("bypassPermissions"),
+        ),
+      ),
+      sandboxId: v.optional(v.string()),
+      sandboxVolumeId: v.optional(v.string()),
+      sandboxStatus: v.optional(
+        v.union(v.literal("creating"), v.literal("ready"), v.literal("error")),
+      ),
+      sandboxState: v.optional(
+        v.union(
+          v.literal("started"),
+          v.literal("stopped"),
+          v.literal("archived"),
+        ),
+      ),
+      sandboxDomain: v.optional(v.string()),
+      sandboxPreviewToken: v.optional(v.string()),
+      sandboxError: v.optional(v.string()),
+      sandboxAliveUntil: v.optional(v.number()),
+      sandboxLoadingStage: v.optional(
+        v.union(
+          v.literal("provisioning"),
+          v.literal("installing"),
+          v.literal("starting"),
+        ),
+      ),
+      devSessionId: v.optional(v.string()),
+      devCommandId: v.optional(v.string()),
+      workerSessionId: v.optional(v.string()),
+      workerCommandId: v.optional(v.string()),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    // Find branch by project and name
+    const branch = await ctx.db
+      .query("branches")
+      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+      .filter((q) => q.eq(q.field("branchName"), args.branchName))
+      .first();
+
+    return branch || null;
+  },
+});
+
 // Mutation to delete a branch and its messages
 export const deleteBranch = mutation({
   args: {

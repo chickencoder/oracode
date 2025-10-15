@@ -177,24 +177,26 @@ export function MessageRenderer({
   return (
     <>
       {messages.map((message) => {
-        // Determine avatar and name based on role and user ID
-        const isCurrentUser =
-          message.role === "user" &&
-          currentUser &&
-          message.userId === currentUser.id;
         const isAssistant = message.role === "assistant";
 
-        const avatarSrc = isAssistant
-          ? "/claude.png"
-          : isCurrentUser && currentUser.avatarUrl
-            ? currentUser.avatarUrl
-            : "https://static.landing.so/avatars/male-1.png";
+        // Use user data from message
+        let avatarSrc: string | undefined;
+        let userName: string;
 
-        const userName = isAssistant
-          ? "Claude"
-          : isCurrentUser && currentUser.name
-            ? currentUser.name
-            : "User";
+        if (isAssistant) {
+          avatarSrc = "/claude.png";
+          userName = "Claude";
+        } else if (message.user) {
+          // Use user data from database (includes avatar from Clerk)
+          avatarSrc = message.user.imageUrl
+            ? `${message.user.imageUrl}?width=64`
+            : undefined;
+          userName = message.user.name;
+        } else {
+          // Fallback for messages without user data
+          avatarSrc = undefined;
+          userName = "User";
+        }
 
         const isEmptyAssistantMessage =
           isAssistant && message.parts.length === 0;

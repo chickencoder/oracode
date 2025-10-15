@@ -31,7 +31,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -60,7 +59,9 @@ export function ProjectBranchesPage() {
 
   const branches = useQuery(
     api.branches.getBranchesByProject,
-    projectId && organization?.id ? { projectId: projectId as Id<"projects"> } : "skip",
+    projectId && organization?.id
+      ? { projectId: projectId as Id<"projects"> }
+      : "skip",
   );
 
   const handleCreateBranch = () => {
@@ -151,7 +152,7 @@ export function ProjectBranchesPage() {
       </AlertDialog>
 
       {branches === undefined ? (
-        <div className="border rounded-lg bg-card">
+        <div className="border rounded-lg overflow-hidden bg-card">
           <div className="divide-y">
             <Skeleton className="h-12 w-full rounded-none" />
             <Skeleton className="h-12 w-full rounded-none" />

@@ -67,6 +67,7 @@ export function BranchPage() {
           hasError={hasError}
           error={error}
           isCreating={isCreating}
+          isReady={isReady}
           loadingStage={loadingStage}
           onRetry={retrySandbox}
           branchId={branchId as Id<"branches">}

@@ -12,19 +12,10 @@ import type { Id } from "@repo/convex/_generated/dataModel";
 import { useOrganization } from "@clerk/clerk-react";
 import {
   PromptInput,
-  PromptInputActionAddAttachments,
-  PromptInputActionMenu,
-  PromptInputActionMenuContent,
-  PromptInputActionMenuTrigger,
   PromptInputAttachment,
   PromptInputAttachments,
   PromptInputBody,
   type PromptInputMessage,
-  PromptInputModelSelect,
-  PromptInputModelSelectContent,
-  PromptInputModelSelectItem,
-  PromptInputModelSelectTrigger,
-  PromptInputModelSelectValue,
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputToolbar,
@@ -37,7 +28,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MODELS } from "@/lib/constants";
 import { useOptimisticMessages } from "@/hooks/use-optimistic-messages";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { toast } from "sonner";
@@ -50,8 +40,6 @@ interface ChatPanelProps {
 }
 
 export function ChatPanel({ branchId, isSandboxReady }: ChatPanelProps) {
-  const [model, setModel] = useState<string>(MODELS[0].id);
-
   const { organization, isLoaded } = useOrganization();
 
   const messages = useQuery(
@@ -182,46 +170,6 @@ export function ChatPanel({ branchId, isSandboxReady }: ChatPanelProps) {
           />
         </PromptInputBody>
         <PromptInputToolbar>
-          <PromptInputTools>
-            <PromptInputActionMenu>
-              <PromptInputActionMenuTrigger />
-              <PromptInputActionMenuContent>
-                <PromptInputActionAddAttachments />
-              </PromptInputActionMenuContent>
-            </PromptInputActionMenu>
-            {/* Permission Mode Selector */}
-            <Select
-              value={permissionMode || "default"}
-              onValueChange={handlePermissionModeChange}
-            >
-              <SelectTrigger size="sm" className="w-fit gap-1.5">
-                <Shield className="size-3.5" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent side="top" align="start">
-                <SelectItem value="default">Ask First</SelectItem>
-                <SelectItem value="acceptEdits">Auto-approve Edits</SelectItem>
-                <SelectItem value="bypassPermissions">
-                  <span className="text-destructive">Allow All</span>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            <PromptInputModelSelect onValueChange={setModel} value={model}>
-              <PromptInputModelSelectTrigger>
-                <PromptInputModelSelectValue />
-              </PromptInputModelSelectTrigger>
-              <PromptInputModelSelectContent side="top" align="start">
-                {MODELS.map((modelOption) => (
-                  <PromptInputModelSelectItem
-                    key={modelOption.id}
-                    value={modelOption.id}
-                  >
-                    {modelOption.name}
-                  </PromptInputModelSelectItem>
-                ))}
-              </PromptInputModelSelectContent>
-            </PromptInputModelSelect>
-          </PromptInputTools>
           <PromptInputSubmit
             status={status}
             variant="default"

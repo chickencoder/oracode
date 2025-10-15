@@ -175,6 +175,90 @@ export const updateProject = mutation({
   },
 });
 
+// Public query to get project by ID (for proxy service)
+export const getProjectByIdPublic = query({
+  args: {
+    projectId: v.id("projects"),
+  },
+  returns: v.union(
+    v.object({
+      _id: v.id("projects"),
+      githubRepoId: v.number(),
+      name: v.string(),
+      description: v.string(),
+      settings: v.object({
+        installCommand: v.string(),
+        devCommand: v.string(),
+        port: v.number(),
+        projectRoot: v.optional(v.string()),
+      }),
+      createdAt: v.number(),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    // No auth check - this is intentionally public for the proxy service
+    const project = await ctx.db.get(args.projectId);
+    if (!project) {
+      return null;
+    }
+
+    return {
+      _id: project._id,
+      githubRepoId: project.githubRepoId,
+      name: project.name,
+      description: project.description,
+      settings: project.settings,
+      createdAt: project.createdAt,
+    };
+  },
+});
+
+// Get project by orgId and slug (using name as slug)
+export const getProjectByOrgAndSlug = query({
+  args: {
+    orgId: v.string(),
+    slug: v.string(),
+  },
+  returns: v.union(
+    v.object({
+      _id: v.id("projects"),
+      githubRepoId: v.number(),
+      name: v.string(),
+      description: v.string(),
+      settings: v.object({
+        installCommand: v.string(),
+        devCommand: v.string(),
+        port: v.number(),
+        projectRoot: v.optional(v.string()),
+      }),
+      createdAt: v.number(),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    // Query projects for this org matching the slug (using name)
+    const project = await ctx.db
+      .query("projects")
+      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .filter((q) => q.eq(q.field("name"), args.slug))
+      .first();
+
+    if (!project) {
+      return null;
+    }
+
+    return {
+      _id: project._id,
+      githubRepoId: project.githubRepoId,
+      name: project.name,
+      description: project.description,
+      settings: project.settings,
+      createdAt: project.createdAt,
+    };
+  },
+});
+
 // Note: Environment variables are now managed through variables.ts
 // This mutation has been removed as env vars are stored separately in the secrets table
 

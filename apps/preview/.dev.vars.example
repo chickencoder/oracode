@@ -1,0 +1,6 @@
+# Convex deployment URL
+CONVEX_URL=https://your-deployment.convex.cloud
+
+# Shared secret for authenticating with Convex HTTP actions
+# Generate with: openssl rand -hex 32
+PROXY_SECRET_KEY=your-secret-key-here

@@ -137,12 +137,9 @@ export function useSandbox(branchId: Id<"branches"> | null | undefined) {
   const isReady =
     branch?.sandboxStatus === "ready" && !!branch?.sandboxDomain && !stopped;
 
-  // Build preview URL with authentication token
-  const previewUrl = branch?.sandboxDomain
-    ? branch.sandboxPreviewToken
-      ? `${branch.sandboxDomain}?token=${branch.sandboxPreviewToken}`
-      : branch.sandboxDomain
-    : "";
+  // Build preview URL using local proxy service
+  // Format: http://branchId.preview.oracode.local
+  const previewUrl = branchId ? `http://${branchId}.preview.oracode.local` : "";
 
   return {
     sandbox: branch, // For backwards compatibility
@@ -151,8 +148,8 @@ export function useSandbox(branchId: Id<"branches"> | null | undefined) {
     isStopped: stopped,
     isArchived: branch?.sandboxState === "archived",
     hasError: branch?.sandboxStatus === "error",
-    domain: branch?.sandboxDomain || "",
-    previewUrl, // Use this for iframe src
+    domain: branch?.sandboxDomain || "", // Raw Daytona URL for debugging
+    previewUrl, // Proxy URL for iframe src
     error: branch?.sandboxError,
     loadingStage: branch?.sandboxLoadingStage,
     retrySandbox,

@@ -13,6 +13,32 @@ import {
 import { injectWorkerIntoSandbox } from "./lib/sandbox";
 import { generateClerkTokenForConvex } from "./lib/clerkAuth";
 import { buildOracodeImage } from "./lib/daytonaImage";
+import { buildEnvExports } from "./lib/shellUtils";
+
+// Helper function to build dev command with environment variables
+async function buildDevCommandWithEnv(
+  ctx: ActionCtx,
+  projectId: Id<"projects">,
+  baseCommand: string,
+): Promise<string> {
+  try {
+    const envVars = await ctx.runAction(api.variables.getAllDecrypted, {
+      projectId,
+    });
+
+    if (Object.keys(envVars).length > 0) {
+      const envExports = buildEnvExports(envVars);
+      console.log(
+        `Dev command will run with ${Object.keys(envVars).length} environment variables`,
+      );
+      return `${envExports} && ${baseCommand}`;
+    }
+  } catch (error) {
+    console.warn("Failed to load environment variables:", error);
+  }
+
+  return baseCommand;
+}
 
 // Action to start a sandbox for a branch
 export const startSandbox = action({
@@ -346,14 +372,13 @@ export const startSandbox = action({
       const devSessionId = `dev-server-${Date.now()}`;
       await sandbox.process.createSession(devSessionId);
 
-      // Build dev command with environment variables
-      let devCommand = `cd ${projectRoot} && ${project.settings.devCommand}`;
-      if (projectEnvVars && Object.keys(projectEnvVars).length > 0) {
-        const { buildEnvExports } = await import("./lib/workerBundle");
-        const envExports = buildEnvExports(projectEnvVars);
-        devCommand = `${envExports} && ${devCommand}`;
-        console.log(`Dev server will run with ${Object.keys(projectEnvVars).length} environment variables`);
-      }
+      // Build dev command with environment variables (using shared helper)
+      const baseDevCommand = `cd ${projectRoot} && ${project.settings.devCommand}`;
+      const devCommand = await buildDevCommandWithEnv(
+        ctx,
+        branch.projectId,
+        baseDevCommand,
+      );
 
       // Execute dev command asynchronously in the session
       const devResult = await sandbox.process.executeSessionCommand(
@@ -517,138 +542,36 @@ export const restartSandbox = action({
         throw new Error("Branch not found");
       }
 
-      if (!branch.sandboxId) {
-        throw new Error("No sandbox found for this branch");
-      }
+      console.log("Restarting sandbox - will delete old and create new");
 
-      console.log("Restarting sandbox:", branch.sandboxId);
-
-      // Step 3: Get project settings
-      const project = await ctx.runQuery(api.projects.getProjectById, {
-        projectId: branch.projectId,
-      });
-      if (!project) {
-        throw new Error("Project not found");
-      }
-
-      // Step 4: Reconnect to existing Sandbox
-      const daytona = new Daytona({
-        apiKey: process.env.DAYTONA_API_KEY!,
-        apiUrl: process.env.DAYTONA_API_URL || "https://app.daytona.io/api",
-        target: (process.env.DAYTONA_TARGET || "us") as "eu" | "us" | "asia",
-      });
-
-      const sandbox = await daytona.get(branch.sandboxId);
-      console.log("Reconnected to sandbox");
-
-      // Step 5: Update status to "creating" (restarting)
-      await ctx.runMutation(api.branches.initBranchSandbox, {
-        branchId: args.branchId,
-      });
-
-      // Step 6: Start the sandbox
-      console.log("Starting sandbox...");
-      await sandbox.start();
-      await sandbox.waitUntilStarted(0);
-      console.log("Sandbox started successfully");
-
-      // Update state to started
-      await ctx.runMutation(api.branches.updateBranchSandboxState, {
-        branchId: args.branchId,
-        state: "started",
-      });
-
-      // Step 7: Get working directory
-      const workDir = await sandbox.getWorkDir();
-      console.log("Working directory:", workDir);
-
-      // Calculate project root path (includes optional subdirectory)
-      const projectRoot = project.settings.projectRoot
-        ? `${workDir}/project/${project.settings.projectRoot}`
-        : `${workDir}/project`;
-      console.log("Project root (where agent will run):", projectRoot);
-
-      // Step 8: Update stage to "installing"
-      await ctx.runMutation(api.branches.updateBranchSandboxStage, {
-        branchId: args.branchId,
-        stage: "installing",
-      });
-
-      // Step 9: Run install command
-      console.log("Running install command:", project.settings.installCommand);
-      const installResult = await sandbox.process.executeCommand(
-        project.settings.installCommand,
-        projectRoot,
-      );
-
-      if (installResult.exitCode !== 0) {
-        throw new Error(`Install command failed: ${installResult.result}`);
-      }
-      console.log("Install command completed successfully");
-
-      // Step 10: Update stage to "starting"
-      await ctx.runMutation(api.branches.updateBranchSandboxStage, {
-        branchId: args.branchId,
-        stage: "starting",
-      });
-
-      // Step 11: Start dev server in session (if not already running)
-      console.log("Starting dev server:", project.settings.devCommand);
-
-      // Create or reuse dev session
-      const devSessionId = branch.devSessionId || `dev-server-${Date.now()}`;
-
-      // Only create session if it doesn't exist
-      if (!branch.devSessionId) {
-        await sandbox.process.createSession(devSessionId);
-      }
-
-      const devResult = await sandbox.process.executeSessionCommand(
-        devSessionId,
-        {
-          command: `cd ${projectRoot} && ${project.settings.devCommand}`,
-          runAsync: true,
-        },
-      );
-
-      console.log("Dev server started in session:", devSessionId);
-      console.log("Command ID:", devResult.cmdId);
-
-      // Store session IDs
-      if (devResult.cmdId) {
-        await ctx.runMutation(api.branches.updateBranchDevServerSession, {
-          branchId: args.branchId,
-          devSessionId: devSessionId,
-          devCommandId: devResult.cmdId,
+      // Step 3: Delete old sandbox if it exists
+      // Note: startSandbox will set status to "creating" so we don't need to do it here
+      if (branch.sandboxId) {
+        console.log("Deleting old sandbox:", branch.sandboxId);
+        const daytona = new Daytona({
+          apiKey: process.env.DAYTONA_API_KEY!,
+          apiUrl: process.env.DAYTONA_API_URL || "https://app.daytona.io/api",
+          target: (process.env.DAYTONA_TARGET || "eu") as "eu" | "us" | "asia",
         });
+
+        try {
+          const sandbox = await daytona.get(branch.sandboxId);
+          await daytona.delete(sandbox);
+          console.log("Old sandbox deleted successfully");
+        } catch (error) {
+          console.warn("Failed to delete old sandbox (might not exist):", error);
+          // Continue anyway - we'll create a new one
+        }
       }
 
-      // Step 12: Get domain using preview link API
-      console.log("Getting preview link for port:", project.settings.port);
-      const previewLink = await sandbox.getPreviewLink(project.settings.port);
-      const domain = previewLink.url;
-      const previewToken = previewLink.token;
-      console.log("Sandbox domain:", domain);
-      console.log("Preview token:", previewToken ? "present" : "none");
-
-      // Step 13: Update status back to "ready" and clear error, with aliveUntil timestamp
-      const aliveUntil = Date.now() + ms("10m");
-      await ctx.runMutation(api.branches.updateBranchSandboxReady, {
+      // Step 4: Delegate to startSandbox to create a fresh sandbox
+      console.log("Creating new sandbox from scratch");
+      const result = await ctx.runAction(api.sandboxActions.startSandbox, {
         branchId: args.branchId,
-        sandboxId: branch.sandboxId,
-        domain,
-        previewToken,
-        aliveUntil,
       });
-      console.log("Updated sandbox to ready state, alive until:", new Date(aliveUntil).toISOString());
 
       console.log("=== restartSandbox action complete ===");
-
-      return {
-        sandboxId: branch.sandboxId,
-        domain,
-        status: "ready",
-      };
+      return result;
     } catch (error) {
       console.error("=== restartSandbox action failed ===");
       console.error("Error:", error);
@@ -834,17 +757,62 @@ export const resumeSandbox = action({
       });
       console.log("Updated sandbox state and alive until:", new Date(aliveUntil).toISOString());
 
-      // Step 6: Get domain (should still be available)
-      const domain = branch.sandboxDomain || "";
-      const previewToken = branch.sandboxPreviewToken || "";
+      // Step 6: Restart dev server (it's not running after resume)
+      const project = await ctx.runQuery(api.projects.getProjectById, {
+        projectId: branch.projectId,
+      });
 
-      // Step 7: Update status back to "ready" and clear error
-      // Note: aliveUntil already set above in updateBranchSandboxState
+      if (!project) {
+        throw new Error("Project not found");
+      }
+
+      console.log("Restarting dev server:", project.settings.devCommand);
+      const projectRoot = project.settings.projectRoot || "";
+
+      // Always create a new session on resume (old sessions are destroyed when sandbox stops)
+      const devSessionId = `dev-server-${Date.now()}`;
+      await sandbox.process.createSession(devSessionId);
+      console.log("Created new dev session:", devSessionId);
+
+      // Build dev command with environment variables
+      const baseDevCommand = `cd ${projectRoot} && ${project.settings.devCommand}`;
+      const devCommand = await buildDevCommandWithEnv(
+        ctx,
+        branch.projectId,
+        baseDevCommand,
+      );
+
+      // Start dev server in session
+      const devResult = await sandbox.process.executeSessionCommand(devSessionId, {
+        command: devCommand,
+        runAsync: true,
+      });
+
+      console.log("Dev server started in session:", devSessionId);
+
+      // Store new session IDs
+      if (devResult.cmdId) {
+        await ctx.runMutation(api.branches.updateBranchDevServerSession, {
+          branchId: args.branchId,
+          devSessionId: devSessionId,
+          devCommandId: devResult.cmdId,
+        });
+      }
+
+      // Step 7: Get fresh preview link
+      console.log("Getting preview link for port:", project.settings.port);
+      const previewLink = await sandbox.getPreviewLink(project.settings.port);
+      const domain = previewLink.url;
+      const previewToken = previewLink.token;
+      console.log("Sandbox domain:", domain);
+
+      // Step 8: Update status back to "ready" with fresh preview URL
       await ctx.runMutation(api.branches.updateBranchSandboxReady, {
         branchId: args.branchId,
         sandboxId: branch.sandboxId,
         domain,
         previewToken,
+        aliveUntil, // Use the aliveUntil from earlier (already set to 10 min from now)
       });
 
       console.log("=== resumeSandbox action complete ===");
