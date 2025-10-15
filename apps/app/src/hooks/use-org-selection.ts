@@ -49,5 +49,6 @@ export function useOrgSelection() {
     orgs,
     isOrgsLoaded: isLoaded,
     handleOrgSelect,
+    activeOrg,
   };
 }

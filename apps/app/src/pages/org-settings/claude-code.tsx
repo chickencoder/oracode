@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { useQuery, useAction } from "convex/react";
+import { useOrganization } from "@clerk/clerk-react";
 import { api } from "@repo/convex/_generated/api";
 import {
   Form,
@@ -43,7 +44,8 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 export function ClaudeCodeSettingsPage() {
-  const settings = useQuery(api.settings.get);
+  const { organization } = useOrganization();
+  const settings = useQuery(api.settings.get, organization?.id ? {} : "skip");
   const setApiKey = useAction(api.settings.setAnthropicApiKey);
   const removeApiKey = useAction(
     api.settings.removeAnthropicApiKey,

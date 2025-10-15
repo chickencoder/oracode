@@ -4,6 +4,7 @@ import { useQueryState } from "nuqs";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@repo/convex/_generated/api";
 import type { Id } from "@repo/convex/_generated/dataModel";
+import { useOrganization } from "@clerk/clerk-react";
 import { formatDistanceToNow } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ export function ProjectBranchesPage() {
     projectId: string;
   }>();
   const navigate = useNavigate();
+  const { organization } = useOrganization();
   const [search, setSearch] = useQueryState("q", { defaultValue: "" });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -58,7 +60,7 @@ export function ProjectBranchesPage() {
 
   const branches = useQuery(
     api.branches.getBranchesByProject,
-    projectId ? { projectId: projectId as Id<"projects"> } : "skip",
+    projectId && organization?.id ? { projectId: projectId as Id<"projects"> } : "skip",
   );
 
   const handleCreateBranch = () => {

@@ -3,6 +3,7 @@ import { useParams, useNavigate, Outlet } from "react-router";
 import { useQuery } from "convex/react";
 import { api } from "@repo/convex/_generated/api";
 import type { Id } from "@repo/convex/_generated/dataModel";
+import { useOrganization } from "@clerk/clerk-react";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { useProjects } from "@/hooks/use-projects";
 import { useOrgSelection } from "@/hooks/use-org-selection";
@@ -25,11 +26,12 @@ export function ProjectLayout() {
     orgSlug: string;
     projectId: string;
   }>();
+  const { organization } = useOrganization();
   const { orgs, isOrgsLoaded, handleOrgSelect } = useOrgSelection();
 
   const project = useQuery(
     api.projects.getProjectById,
-    projectId ? { projectId: projectId as Id<"projects"> } : "skip",
+    projectId && organization?.id ? { projectId: projectId as Id<"projects"> } : "skip",
   );
 
   const { projects, isLoading: isProjectsLoading } = useProjects();
