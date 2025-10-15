@@ -20,6 +20,11 @@ export function BranchPage() {
     branchId && organization?.id ? { branchId: branchId as Id<"branches"> } : "skip",
   );
 
+  const project = useQuery(
+    api.projects.getProjectById,
+    branch ? { projectId: branch.projectId } : "skip",
+  );
+
   const { previewUrl, hasError, error, isCreating, loadingStage, isReady, retrySandbox } =
     useSandbox(branchId ? (branchId as Id<"branches">) : null);
 
@@ -38,6 +43,7 @@ export function BranchPage() {
         <BranchBreadcrumbs
           orgSlug={organization?.slug || ""}
           projectId={branch?.projectId || ""}
+          projectName={project?.name}
           branchName={branch?.branchName}
         />
         <div className="flex items-center gap-2">
