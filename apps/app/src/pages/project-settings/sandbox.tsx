@@ -112,7 +112,7 @@ export function DevelopmentSettingsPage() {
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <Card>
             <CardHeader>
-              <CardTitle>Sandbox</CardTitle>
+              <CardTitle>Sandbox Settings</CardTitle>
               <CardDescription>
                 Configure how your project is built and run.
               </CardDescription>
