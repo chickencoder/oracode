@@ -141,12 +141,9 @@ export function ProjectBranchesPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
+            <Button variant="destructive" onClick={handleConfirmDelete}>
               Delete
-            </AlertDialogAction>
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
