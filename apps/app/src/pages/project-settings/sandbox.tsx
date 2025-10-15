@@ -149,41 +149,43 @@ export function DevelopmentSettingsPage() {
                   />
                 </div>
 
-                <FormField
-                  control={form.control}
-                  name="port"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Port</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          placeholder="3000"
-                          {...field}
-                          onChange={(e) => field.onChange(Number(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="projectRoot"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Project Root</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g. apps/app" {...field} />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">
+                          For monorepos - where install/dev commands are run and the sandbox working directory is set. Leave empty for repository root.
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="projectRoot"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Project Root (optional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="apps/frontend" {...field} />
-                      </FormControl>
-                      <p className="text-xs text-muted-foreground">
-                        Subdirectory within the repository where the agent should operate. Leave empty for repository root. Useful for monorepos.
-                      </p>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="port"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Port</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            placeholder="3000"
+                            {...field}
+                            onChange={(e) => field.onChange(Number(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
 
               <Button
