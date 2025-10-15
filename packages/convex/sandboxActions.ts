@@ -784,7 +784,11 @@ export const resumeSandbox = action({
         throw new Error("No sandbox found for this branch");
       }
 
-      if (branch.sandboxState !== "stopped") {
+      // Check if sandbox is stopped (trust aliveUntil as source of truth)
+      const isPastAliveUntil = branch.sandboxAliveUntil && Date.now() > branch.sandboxAliveUntil;
+      const isStopped = branch.sandboxState === "stopped" || isPastAliveUntil;
+
+      if (!isStopped) {
         console.log("Sandbox is not stopped, returning current state");
         return {
           sandboxId: branch.sandboxId,
@@ -793,7 +797,12 @@ export const resumeSandbox = action({
         };
       }
 
-      console.log("Resuming stopped sandbox:", branch.sandboxId);
+      console.log(
+        isPastAliveUntil
+          ? "Resuming sandbox past aliveUntil:"
+          : "Resuming stopped sandbox:",
+        branch.sandboxId,
+      );
 
       // Step 3: Update status to "creating" (resuming)
       await ctx.runMutation(api.branches.initBranchSandbox, {
