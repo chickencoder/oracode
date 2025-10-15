@@ -50,6 +50,7 @@ export default defineSchema({
     sandboxDomain: v.optional(v.string()), // Public domain for web preview
     sandboxPreviewToken: v.optional(v.string()), // Auth token for preview URL (private sandboxes)
     sandboxError: v.optional(v.string()), // Error message if failed
+    sandboxAliveUntil: v.optional(v.number()), // Timestamp when sandbox will auto-stop (based on 10min interval)
     sandboxLoadingStage: v.optional(
       v.union(
         v.literal("provisioning"), // Creating sandbox

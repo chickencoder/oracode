@@ -167,7 +167,7 @@ export function PreviewPanel({
                   {error || "An error occurred while setting up the sandbox"}
                 </AlertDescription>
                 <Button
-                  onClick={handleRefresh}
+                  onClick={handleRetry}
                   loading={isRetrying}
                   size="sm"
                   disabled={isCreating}

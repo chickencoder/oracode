@@ -8,6 +8,7 @@ export function useSandbox(branchId: Id<"branches"> | null | undefined) {
   const { organization } = useOrganization();
   const creationInProgress = useRef(false);
   const hasAttempted = useRef(false);
+  const hasCheckedLiveState = useRef(false);
 
   // Query branch directly (includes sandbox fields)
   // Skip if no branchId or no organization loaded yet
@@ -18,8 +19,9 @@ export function useSandbox(branchId: Id<"branches"> | null | undefined) {
 
   const startSandboxAction = useAction(api.sandboxActions.startSandbox);
   const retrySandboxAction = useAction(api.sandboxActions.retrySandbox);
+  const resumeSandboxAction = useAction(api.sandboxActions.resumeSandbox);
 
-  // Auto-create or auto-restart sandbox
+  // Auto-create or auto-resume sandbox
   useEffect(() => {
     if (!branchId || !branch || creationInProgress.current) return;
 
@@ -44,24 +46,68 @@ export function useSandbox(branchId: Id<"branches"> | null | undefined) {
       return;
     }
 
-    // If sandbox exists but stopped/archived, restart it automatically
-    const shouldRestart =
+    // Check if sandbox is likely stopped based on aliveUntil timestamp
+    const isLikelyStopped =
       branch.sandboxId &&
-      branch.sandboxState !== "started" &&
-      branch.sandboxStatus !== "creating";
+      branch.sandboxState === "started" &&
+      branch.sandboxAliveUntil &&
+      Date.now() > branch.sandboxAliveUntil;
 
-    if (shouldRestart) {
+    // If sandbox is likely stopped (past aliveUntil), resume it
+    if (isLikelyStopped && !hasAttempted.current) {
+      console.log("Sandbox past aliveUntil timestamp, resuming...");
       creationInProgress.current = true;
+      hasAttempted.current = true;
+      resumeSandboxAction({ branchId })
+        .then(() => {
+          creationInProgress.current = false;
+        })
+        .catch((error) => {
+          console.error("Failed to resume sandbox:", error);
+          creationInProgress.current = false;
+        });
+      return;
+    }
+
+    // If sandbox exists but explicitly stopped, resume it
+    if (
+      branch.sandboxId &&
+      branch.sandboxState === "stopped" &&
+      branch.sandboxStatus !== "creating" &&
+      !hasAttempted.current
+    ) {
+      creationInProgress.current = true;
+      hasAttempted.current = true;
+      resumeSandboxAction({ branchId })
+        .then(() => {
+          creationInProgress.current = false;
+        })
+        .catch((error) => {
+          console.error("Failed to resume sandbox:", error);
+          creationInProgress.current = false;
+        });
+      return;
+    }
+
+    // If sandbox exists but archived, restart it (needs full restart)
+    if (
+      branch.sandboxId &&
+      branch.sandboxState === "archived" &&
+      branch.sandboxStatus !== "creating" &&
+      !hasAttempted.current
+    ) {
+      creationInProgress.current = true;
+      hasAttempted.current = true;
       retrySandboxAction({ branchId })
         .then(() => {
           creationInProgress.current = false;
         })
         .catch((error) => {
-          console.error("Failed to restart sandbox:", error);
+          console.error("Failed to restart archived sandbox:", error);
           creationInProgress.current = false;
         });
     }
-  }, [branchId, branch, startSandboxAction, retrySandboxAction]);
+  }, [branchId, branch, startSandboxAction, resumeSandboxAction, retrySandboxAction]);
 
   const retrySandbox = () => {
     if (!branchId || !branch || creationInProgress.current) return;
@@ -82,11 +128,19 @@ export function useSandbox(branchId: Id<"branches"> | null | undefined) {
       });
   };
 
-  // Sandbox is ready when status is "ready", state is "started", and has domain
+  // Check if sandbox is likely stopped based on timestamp
+  const isLikelyStopped =
+    branch?.sandboxId &&
+    branch?.sandboxState === "started" &&
+    branch?.sandboxAliveUntil &&
+    Date.now() > branch.sandboxAliveUntil;
+
+  // Sandbox is ready when status is "ready", state is "started", has domain, and not past aliveUntil
   const isReady =
     branch?.sandboxStatus === "ready" &&
     branch?.sandboxState === "started" &&
-    !!branch?.sandboxDomain;
+    !!branch?.sandboxDomain &&
+    !isLikelyStopped;
 
   // Build preview URL with authentication token
   const previewUrl = branch?.sandboxDomain
@@ -99,7 +153,7 @@ export function useSandbox(branchId: Id<"branches"> | null | undefined) {
     sandbox: branch, // For backwards compatibility
     isCreating: branch?.sandboxStatus === "creating",
     isReady,
-    isStopped: branch?.sandboxState === "stopped",
+    isStopped: branch?.sandboxState === "stopped" || isLikelyStopped,
     isArchived: branch?.sandboxState === "archived",
     hasError: branch?.sandboxStatus === "error",
     domain: branch?.sandboxDomain || "",
