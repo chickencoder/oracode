@@ -210,18 +210,21 @@ export const startSandbox = action({
       console.log("Sandbox ID:", sandboxId);
       console.log("Initial state:", sandbox.state);
 
+      // Start the sandbox (it's created in stopped state)
+      console.log("Starting sandbox...");
+      await sandbox.start();
+
       // Wait for sandbox to be ready using SDK method
-      console.log("Waiting for sandbox to be ready...");
+      console.log("Waiting for sandbox to be started...");
       await sandbox.waitUntilStarted(0); // 0 = wait indefinitely
-      console.log("Sandbox is ready!");
+      console.log("Sandbox started successfully!");
 
       // Step 10: Configure auto-stop interval (10 minutes)
       console.log("Configuring 10-minute auto-stop interval");
       await sandbox.setAutostopInterval(10);
       console.log("Auto-stop configured");
 
-      // Step 11: Store sandboxId and state with aliveUntil timestamp
-      const aliveUntil = Date.now() + ms("10m");
+      // Step 11: Store sandboxId and state
       await ctx.runMutation(api.branches.updateBranchSandbox, {
         branchId: args.branchId,
         sandboxId: sandboxId,
@@ -229,9 +232,8 @@ export const startSandbox = action({
       await ctx.runMutation(api.branches.updateBranchSandboxState, {
         branchId: args.branchId,
         state: "started",
-        aliveUntil,
       });
-      console.log("Stored sandbox ID, state, and alive until:", new Date(aliveUntil).toISOString());
+      console.log("Stored sandbox ID and state as started");
 
       // Step 12: Get working directory
       // (pnpm + Claude SDK are pre-installed in the declarative image)
@@ -509,7 +511,7 @@ export const startSandbox = action({
   },
 });
 
-// Action to restart an existing sandbox (stopped/archived/errored)
+// Action to restart an existing sandbox (stop then start to preserve files)
 export const restartSandbox = action({
   args: {
     branchId: v.id("branches"),
@@ -542,36 +544,216 @@ export const restartSandbox = action({
         throw new Error("Branch not found");
       }
 
-      console.log("Restarting sandbox - will delete old and create new");
-
-      // Step 3: Delete old sandbox if it exists
-      // Note: startSandbox will set status to "creating" so we don't need to do it here
-      if (branch.sandboxId) {
-        console.log("Deleting old sandbox:", branch.sandboxId);
-        const daytona = new Daytona({
-          apiKey: process.env.DAYTONA_API_KEY!,
-          apiUrl: process.env.DAYTONA_API_URL || "https://app.daytona.io/api",
-          target: (process.env.DAYTONA_TARGET || "eu") as "eu" | "us" | "asia",
-        });
-
-        try {
-          const sandbox = await daytona.get(branch.sandboxId);
-          await daytona.delete(sandbox);
-          console.log("Old sandbox deleted successfully");
-        } catch (error) {
-          console.warn("Failed to delete old sandbox (might not exist):", error);
-          // Continue anyway - we'll create a new one
-        }
+      if (!branch.sandboxId) {
+        throw new Error("No sandbox found for this branch");
       }
 
-      // Step 4: Delegate to startSandbox to create a fresh sandbox
-      console.log("Creating new sandbox from scratch");
-      const result = await ctx.runAction(api.sandboxActions.startSandbox, {
+      // Check if sandbox is already running and ready - return early (idempotent)
+      if (branch.sandboxState === "started" && branch.sandboxStatus === "ready") {
+        console.log("Sandbox is already running, returning current state");
+        return {
+          sandboxId: branch.sandboxId,
+          domain: branch.sandboxDomain || "",
+          status: "ready",
+        };
+      }
+
+      console.log("Restarting sandbox - will stop and start to preserve files:", branch.sandboxId);
+
+      // Step 3: Update status to "creating" (restarting)
+      await ctx.runMutation(api.branches.initBranchSandbox, {
         branchId: args.branchId,
       });
 
+      // Step 4: Connect to existing sandbox
+      const daytona = new Daytona({
+        apiKey: process.env.DAYTONA_API_KEY!,
+        apiUrl: process.env.DAYTONA_API_URL || "https://app.daytona.io/api",
+        target: (process.env.DAYTONA_TARGET || "eu") as "eu" | "us" | "asia",
+      });
+
+      const sandbox = await daytona.get(branch.sandboxId);
+      console.log("Reconnected to sandbox");
+
+      // Step 5: Stop the sandbox (if it's running)
+      console.log("Stopping sandbox...");
+      try {
+        await sandbox.stop(0); // Wait indefinitely for stop
+        console.log("Sandbox stopped successfully");
+      } catch (error) {
+        console.warn("Failed to stop sandbox (might already be stopped):", error);
+        // Continue anyway - we'll try to start it
+      }
+
+      // Step 6: Start the sandbox (same as resume from here)
+      console.log("Starting sandbox...");
+      await sandbox.start();
+      await sandbox.waitUntilStarted(0);
+      console.log("Sandbox started successfully");
+
+      // Step 6b: Configure auto-stop interval (10 minutes)
+      console.log("Configuring 10-minute auto-stop interval");
+      await sandbox.setAutostopInterval(10);
+      console.log("Auto-stop configured");
+
+      // Update state to started
+      await ctx.runMutation(api.branches.updateBranchSandboxState, {
+        branchId: args.branchId,
+        state: "started",
+      });
+      console.log("Updated sandbox state to started");
+
+      // Step 7: Restart dev server (it's not running after restart)
+      const project = await ctx.runQuery(api.projects.getProjectById, {
+        projectId: branch.projectId,
+      });
+
+      if (!project) {
+        throw new Error("Project not found");
+      }
+
+      console.log("Restarting dev server:", project.settings.devCommand);
+
+      // Get working directory and calculate project root path (same as start)
+      const workDir = await sandbox.getWorkDir();
+      const projectRoot = project.settings.projectRoot
+        ? `${workDir}/project/${project.settings.projectRoot}`
+        : `${workDir}/project`;
+      console.log("Project root (where dev server will run):", projectRoot);
+
+      // Always create a new session on restart (old sessions are destroyed when sandbox stops)
+      const devSessionId = `dev-server-${Date.now()}`;
+      await sandbox.process.createSession(devSessionId);
+      console.log("Created new dev session:", devSessionId);
+
+      // Build dev command with environment variables
+      const baseDevCommand = `cd ${projectRoot} && ${project.settings.devCommand}`;
+      const devCommand = await buildDevCommandWithEnv(
+        ctx,
+        branch.projectId,
+        baseDevCommand,
+      );
+
+      // Start dev server in session
+      const devResult = await sandbox.process.executeSessionCommand(devSessionId, {
+        command: devCommand,
+        runAsync: true,
+      });
+
+      console.log("Dev server started in session:", devSessionId);
+
+      // Store new session IDs
+      if (devResult.cmdId) {
+        await ctx.runMutation(api.branches.updateBranchDevServerSession, {
+          branchId: args.branchId,
+          devSessionId: devSessionId,
+          devCommandId: devResult.cmdId,
+        });
+      }
+
+      // Step 8: Get fresh preview link
+      console.log("Getting preview link for port:", project.settings.port);
+      const previewLink = await sandbox.getPreviewLink(project.settings.port);
+      const domain = previewLink.url;
+      const previewToken = previewLink.token;
+      console.log("Sandbox domain:", domain);
+
+      // Step 9: Update status back to "ready" with fresh preview URL
+      await ctx.runMutation(api.branches.updateBranchSandboxReady, {
+        branchId: args.branchId,
+        sandboxId: branch.sandboxId,
+        domain,
+        previewToken,
+      });
+
+      // Step 10: Inject sandbox worker (needs to be restarted after restart)
+      console.log("Injecting sandbox worker...");
+
+      // Generate Clerk token for worker authentication
+      const clerkUserId = identity.subject;
+      if (!clerkUserId) {
+        throw new Error("No Clerk user ID found in identity");
+      }
+      const clerkToken = await generateClerkTokenForConvex(
+        clerkUserId,
+        identity.orgId,
+      );
+
+      // Fetch secrets for worker
+      let anthropicApiKey: string | undefined;
+      let projectEnvVars: Record<string, string> | undefined;
+
+      try {
+        // Fetch org's Anthropic API key
+        const orgApiKey = await ctx.runAction(
+          api.settings.getAnthropicApiKeyDecrypted,
+          { orgId: identity.orgId },
+        );
+        if (orgApiKey) {
+          anthropicApiKey = orgApiKey;
+          console.log("✓ Anthropic API key found for organization");
+        } else if (process.env.ANTHROPIC_API_KEY) {
+          anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+          console.log("✓ Using Anthropic API key from Convex environment");
+        }
+
+        // Fetch project environment variables
+        const envVars = await ctx.runAction(api.variables.getAllDecrypted, {
+          projectId: branch.projectId,
+        });
+        if (Object.keys(envVars).length > 0) {
+          projectEnvVars = envVars;
+          console.log(
+            `✓ ${Object.keys(envVars).length} project environment variables loaded`,
+          );
+        }
+      } catch (secretError) {
+        console.warn("⚠️ Failed to load secrets, continuing without them:", secretError);
+        if (process.env.ANTHROPIC_API_KEY) {
+          anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+        }
+      }
+
+      const convexUrl = process.env.CONVEX_URL;
+      if (!convexUrl) {
+        console.warn("⚠️ No CONVEX_URL found, skipping worker injection");
+      } else {
+        const workerResult = await injectWorkerIntoSandbox(sandbox, {
+          sandboxId: branch.sandboxId,
+          convexUrl,
+          branchId: args.branchId,
+          clerkToken,
+          anthropicApiKey,
+          projectEnvVars,
+          projectRoot,
+        });
+
+        if (!workerResult.success) {
+          console.warn(
+            "⚠️ Failed to inject worker, continuing without it:",
+            workerResult.error,
+          );
+        } else {
+          console.log("Sandbox worker injected successfully");
+
+          // Store worker session IDs for monitoring
+          if (workerResult.sessionId && workerResult.commandId) {
+            await ctx.runMutation(api.branches.updateBranchWorkerSession, {
+              branchId: args.branchId,
+              workerSessionId: workerResult.sessionId,
+              workerCommandId: workerResult.commandId,
+            });
+          }
+        }
+      }
+
       console.log("=== restartSandbox action complete ===");
-      return result;
+
+      return {
+        sandboxId: branch.sandboxId,
+        domain,
+        status: "ready",
+      };
     } catch (error) {
       console.error("=== restartSandbox action failed ===");
       console.error("Error:", error);
@@ -707,9 +889,8 @@ export const resumeSandbox = action({
         throw new Error("No sandbox found for this branch");
       }
 
-      // Check if sandbox is stopped (trust aliveUntil as source of truth)
-      const isPastAliveUntil = branch.sandboxAliveUntil && Date.now() > branch.sandboxAliveUntil;
-      const isStopped = branch.sandboxState === "stopped" || isPastAliveUntil;
+      // Check if sandbox is stopped (based on sandboxState from Daytona webhooks)
+      const isStopped = branch.sandboxState === "stopped" || branch.sandboxState === "archived";
 
       if (!isStopped) {
         console.log("Sandbox is not stopped, returning current state");
@@ -720,12 +901,7 @@ export const resumeSandbox = action({
         };
       }
 
-      console.log(
-        isPastAliveUntil
-          ? "Resuming sandbox past aliveUntil:"
-          : "Resuming stopped sandbox:",
-        branch.sandboxId,
-      );
+      console.log("Resuming stopped sandbox:", branch.sandboxId);
 
       // Step 3: Update status to "creating" (resuming)
       await ctx.runMutation(api.branches.initBranchSandbox, {
@@ -748,14 +924,17 @@ export const resumeSandbox = action({
       await sandbox.waitUntilStarted(0);
       console.log("Sandbox started successfully");
 
-      // Update state to started with new aliveUntil timestamp (10 minutes from now)
-      const aliveUntil = Date.now() + ms("10m");
+      // Step 5b: Configure auto-stop interval (10 minutes)
+      console.log("Configuring 10-minute auto-stop interval");
+      await sandbox.setAutostopInterval(10);
+      console.log("Auto-stop configured");
+
+      // Update state to started
       await ctx.runMutation(api.branches.updateBranchSandboxState, {
         branchId: args.branchId,
         state: "started",
-        aliveUntil,
       });
-      console.log("Updated sandbox state and alive until:", new Date(aliveUntil).toISOString());
+      console.log("Updated sandbox state to started");
 
       // Step 6: Restart dev server (it's not running after resume)
       const project = await ctx.runQuery(api.projects.getProjectById, {
@@ -767,7 +946,13 @@ export const resumeSandbox = action({
       }
 
       console.log("Restarting dev server:", project.settings.devCommand);
-      const projectRoot = project.settings.projectRoot || "";
+
+      // Get working directory and calculate project root path (same as start)
+      const workDir = await sandbox.getWorkDir();
+      const projectRoot = project.settings.projectRoot
+        ? `${workDir}/project/${project.settings.projectRoot}`
+        : `${workDir}/project`;
+      console.log("Project root (where dev server will run):", projectRoot);
 
       // Always create a new session on resume (old sessions are destroyed when sandbox stops)
       const devSessionId = `dev-server-${Date.now()}`;
@@ -812,8 +997,88 @@ export const resumeSandbox = action({
         sandboxId: branch.sandboxId,
         domain,
         previewToken,
-        aliveUntil, // Use the aliveUntil from earlier (already set to 10 min from now)
       });
+
+      // Step 9: Inject sandbox worker (needs to be restarted after resume)
+      console.log("Injecting sandbox worker...");
+
+      // Generate Clerk token for worker authentication
+      const clerkUserId = identity.subject;
+      if (!clerkUserId) {
+        throw new Error("No Clerk user ID found in identity");
+      }
+      const clerkToken = await generateClerkTokenForConvex(
+        clerkUserId,
+        identity.orgId,
+      );
+
+      // Fetch secrets for worker
+      let anthropicApiKey: string | undefined;
+      let projectEnvVars: Record<string, string> | undefined;
+
+      try {
+        // Fetch org's Anthropic API key
+        const orgApiKey = await ctx.runAction(
+          api.settings.getAnthropicApiKeyDecrypted,
+          { orgId: identity.orgId },
+        );
+        if (orgApiKey) {
+          anthropicApiKey = orgApiKey;
+          console.log("✓ Anthropic API key found for organization");
+        } else if (process.env.ANTHROPIC_API_KEY) {
+          anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+          console.log("✓ Using Anthropic API key from Convex environment");
+        }
+
+        // Fetch project environment variables
+        const envVars = await ctx.runAction(api.variables.getAllDecrypted, {
+          projectId: branch.projectId,
+        });
+        if (Object.keys(envVars).length > 0) {
+          projectEnvVars = envVars;
+          console.log(
+            `✓ ${Object.keys(envVars).length} project environment variables loaded`,
+          );
+        }
+      } catch (secretError) {
+        console.warn("⚠️ Failed to load secrets, continuing without them:", secretError);
+        if (process.env.ANTHROPIC_API_KEY) {
+          anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+        }
+      }
+
+      const convexUrl = process.env.CONVEX_URL;
+      if (!convexUrl) {
+        console.warn("⚠️ No CONVEX_URL found, skipping worker injection");
+      } else {
+        const workerResult = await injectWorkerIntoSandbox(sandbox, {
+          sandboxId: branch.sandboxId,
+          convexUrl,
+          branchId: args.branchId,
+          clerkToken,
+          anthropicApiKey,
+          projectEnvVars,
+          projectRoot,
+        });
+
+        if (!workerResult.success) {
+          console.warn(
+            "⚠️ Failed to inject worker, continuing without it:",
+            workerResult.error,
+          );
+        } else {
+          console.log("Sandbox worker injected successfully");
+
+          // Store worker session IDs for monitoring
+          if (workerResult.sessionId && workerResult.commandId) {
+            await ctx.runMutation(api.branches.updateBranchWorkerSession, {
+              branchId: args.branchId,
+              workerSessionId: workerResult.sessionId,
+              workerCommandId: workerResult.commandId,
+            });
+          }
+        }
+      }
 
       console.log("=== resumeSandbox action complete ===");
 
@@ -905,6 +1170,107 @@ export const getDevServerLogs = action({
         error: error instanceof Error ? error.message : "Unknown error",
       };
     }
+  },
+});
+
+// Action to "ping" the sandbox and ensure it's running
+// This is the main orchestrator action that clients should call
+// It determines what action to take based on current state
+export const pingSandbox = action({
+  args: {
+    branchId: v.id("branches"),
+  },
+  returns: v.object({
+    sandboxId: v.string(),
+    domain: v.string(),
+    status: v.string(),
+  }),
+  handler: async (
+    ctx,
+    args: { branchId: Id<"branches"> },
+  ): Promise<{ sandboxId: string; domain: string; status: string }> => {
+    console.log("=== pingSandbox action called ===");
+    console.log("Branch ID:", args.branchId);
+
+    // Get auth and verify branch ownership
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.orgId || typeof identity.orgId !== "string") {
+      throw new Error("User must be authenticated with an organization");
+    }
+
+    // Get current branch state
+    const branch = await ctx.runQuery(api.branches.getBranchById, {
+      branchId: args.branchId,
+    });
+
+    if (!branch) {
+      throw new Error("Branch not found");
+    }
+
+    console.log("Current state:", {
+      sandboxId: branch.sandboxId,
+      sandboxStatus: branch.sandboxStatus,
+      sandboxState: branch.sandboxState,
+    });
+
+    // Decision tree: What action should we take?
+
+    // Case 1: No sandbox exists yet - create one
+    if (!branch.sandboxId) {
+      console.log("No sandbox exists, delegating to startSandbox");
+      return await ctx.runAction(api.sandboxActions.startSandbox, {
+        branchId: args.branchId,
+      });
+    }
+
+    // Case 2: Sandbox is archived - needs full restart
+    if (branch.sandboxState === "archived") {
+      console.log("Sandbox is archived, delegating to retrySandbox");
+      return await ctx.runAction(api.sandboxActions.retrySandbox, {
+        branchId: args.branchId,
+      });
+    }
+
+    // Case 3: Sandbox is stopped - just resume it
+    if (branch.sandboxState === "stopped") {
+      console.log("Sandbox is stopped, delegating to resumeSandbox");
+      return await ctx.runAction(api.sandboxActions.resumeSandbox, {
+        branchId: args.branchId,
+      });
+    }
+
+    // Case 4: Sandbox is already started and ready - return current state
+    if (branch.sandboxState === "started" && branch.sandboxStatus === "ready") {
+      console.log("Sandbox is already running, returning current state");
+      return {
+        sandboxId: branch.sandboxId,
+        domain: branch.sandboxDomain || "",
+        status: "ready",
+      };
+    }
+
+    // Case 5: Sandbox is being created or in an error state
+    if (branch.sandboxStatus === "creating") {
+      console.log("Sandbox is being created, returning current state");
+      return {
+        sandboxId: branch.sandboxId,
+        domain: branch.sandboxDomain || "",
+        status: "creating",
+      };
+    }
+
+    if (branch.sandboxStatus === "error") {
+      console.log("Sandbox is in error state, delegating to retrySandbox");
+      return await ctx.runAction(api.sandboxActions.retrySandbox, {
+        branchId: args.branchId,
+      });
+    }
+
+    // Fallback: Something unexpected, try to resume
+    console.warn("Unexpected sandbox state, attempting resume");
+    return await ctx.runAction(api.sandboxActions.resumeSandbox, {
+      branchId: args.branchId,
+    });
   },
 });
 
