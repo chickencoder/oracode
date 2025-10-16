@@ -2,6 +2,56 @@ import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 
+// Shared branch return type validator
+const branchReturnType = v.object({
+  _id: v.id("branches"),
+  _creationTime: v.number(),
+  projectId: v.id("projects"),
+  branchName: v.string(),
+  agentSessionId: v.optional(v.string()),
+  createdAt: v.number(),
+  permissionMode: v.optional(
+    v.union(
+      v.literal("default"),
+      v.literal("acceptEdits"),
+      v.literal("bypassPermissions"),
+    ),
+  ),
+  sandboxId: v.optional(v.string()),
+  sandboxStatus: v.optional(
+    v.union(
+      v.literal("provisioning"),
+      v.literal("starting"),
+      v.literal("running"),
+      v.literal("stopped"),
+      v.literal("archived"),
+      v.literal("error"),
+    ),
+  ),
+  sandboxDomain: v.optional(v.string()),
+  sandboxPreviewToken: v.optional(v.string()),
+  sandboxError: v.optional(v.string()),
+  sandboxLoadingStage: v.optional(
+    v.union(
+      v.literal("provisioning"),
+      v.literal("installing"),
+      v.literal("starting"),
+    ),
+  ),
+  devServer: v.optional(
+    v.object({
+      sessionId: v.string(),
+      commandId: v.string(),
+    }),
+  ),
+  worker: v.optional(
+    v.object({
+      sessionId: v.string(),
+      commandId: v.string(),
+    }),
+  ),
+});
+
 export const createBranch = mutation({
   args: {
     projectId: v.id("projects"),
@@ -31,58 +81,66 @@ export const updateBranchWithAgentId = mutation({
   },
 });
 
+// Get branch by org slug, project slug, and branch name (authenticated)
+export const getBranchByOrgProjectAndBranchName = query({
+  args: {
+    orgSlug: v.string(),
+    projectSlug: v.string(),
+    branchName: v.string(),
+  },
+  returns: v.union(branchReturnType, v.null()),
+  handler: async (ctx, args) => {
+    // Get authenticated user
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.orgId || typeof identity.orgId !== "string") {
+      throw new Error("User must be authenticated with an organization");
+    }
+    const userOrgId = identity.orgId;
+
+    // Find the organization by slug
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_slug", (q) => q.eq("slug", args.orgSlug))
+      .first();
+
+    if (!org) {
+      return null;
+    }
+
+    // Verify user belongs to this org
+    if (org.orgId !== userOrgId) {
+      throw new Error("Not authorized to access this organization");
+    }
+
+    // Find the project by org and slug
+    const project = await ctx.db
+      .query("projects")
+      .withIndex("by_org_and_slug", (q) =>
+        q.eq("orgId", org.orgId).eq("slug", args.projectSlug)
+      )
+      .first();
+
+    if (!project) {
+      return null;
+    }
+
+    // Find the branch by project and branch name
+    const branch = await ctx.db
+      .query("branches")
+      .withIndex("by_project_and_branch_name", (q) =>
+        q.eq("projectId", project._id).eq("branchName", args.branchName)
+      )
+      .first();
+
+    return branch || null;
+  },
+});
+
 export const getBranchById = query({
   args: {
     branchId: v.id("branches"),
   },
-  returns: v.union(
-    v.object({
-      _id: v.id("branches"),
-      _creationTime: v.number(),
-      projectId: v.id("projects"),
-      branchName: v.string(),
-      agentSessionId: v.optional(v.string()),
-      createdAt: v.number(),
-      // Permission mode
-      permissionMode: v.optional(
-        v.union(
-          v.literal("default"),
-          v.literal("acceptEdits"),
-          v.literal("bypassPermissions"),
-        ),
-      ),
-      // Sandbox fields
-      sandboxId: v.optional(v.string()),
-      sandboxVolumeId: v.optional(v.string()),
-      sandboxStatus: v.optional(
-        v.union(v.literal("creating"), v.literal("ready"), v.literal("error")),
-      ),
-      sandboxState: v.optional(
-        v.union(
-          v.literal("started"),
-          v.literal("stopped"),
-          v.literal("archived"),
-        ),
-      ),
-      sandboxDomain: v.optional(v.string()),
-      sandboxPreviewToken: v.optional(v.string()),
-      sandboxError: v.optional(v.string()),
-      sandboxAliveUntil: v.optional(v.number()),
-      sandboxLoadingStage: v.optional(
-        v.union(
-          v.literal("provisioning"),
-          v.literal("installing"),
-          v.literal("starting"),
-        ),
-      ),
-      // Sandbox session fields
-      devSessionId: v.optional(v.string()),
-      devCommandId: v.optional(v.string()),
-      workerSessionId: v.optional(v.string()),
-      workerCommandId: v.optional(v.string()),
-    }),
-    v.null(),
-  ),
+  returns: v.union(branchReturnType, v.null()),
   handler: async (ctx, args) => {
     // Get authenticated user
     const identity = await ctx.auth.getUserIdentity();
@@ -111,53 +169,7 @@ export const getBranchesByProject = query({
   args: {
     projectId: v.id("projects"),
   },
-  returns: v.array(
-    v.object({
-      _id: v.id("branches"),
-      _creationTime: v.number(),
-      projectId: v.id("projects"),
-      branchName: v.string(),
-      agentSessionId: v.optional(v.string()),
-      createdAt: v.number(),
-      // Permission mode
-      permissionMode: v.optional(
-        v.union(
-          v.literal("default"),
-          v.literal("acceptEdits"),
-          v.literal("bypassPermissions"),
-        ),
-      ),
-      // Sandbox fields
-      sandboxId: v.optional(v.string()),
-      sandboxVolumeId: v.optional(v.string()),
-      sandboxStatus: v.optional(
-        v.union(v.literal("creating"), v.literal("ready"), v.literal("error")),
-      ),
-      sandboxState: v.optional(
-        v.union(
-          v.literal("started"),
-          v.literal("stopped"),
-          v.literal("archived"),
-        ),
-      ),
-      sandboxDomain: v.optional(v.string()),
-      sandboxPreviewToken: v.optional(v.string()),
-      sandboxError: v.optional(v.string()),
-      sandboxAliveUntil: v.optional(v.number()),
-      sandboxLoadingStage: v.optional(
-        v.union(
-          v.literal("provisioning"),
-          v.literal("installing"),
-          v.literal("starting"),
-        ),
-      ),
-      // Sandbox session fields
-      devSessionId: v.optional(v.string()),
-      devCommandId: v.optional(v.string()),
-      workerSessionId: v.optional(v.string()),
-      workerCommandId: v.optional(v.string()),
-    }),
-  ),
+  returns: v.array(branchReturnType),
   handler: async (ctx, args) => {
     // Get authenticated user
     const identity = await ctx.auth.getUserIdentity();
@@ -262,40 +274,6 @@ export const updateBranchSandbox = mutation({
   },
 });
 
-// Mutation to update sandbox and volume IDs
-export const updateBranchSandboxAndVolume = mutation({
-  args: {
-    branchId: v.id("branches"),
-    sandboxId: v.string(),
-    volumeId: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    // Get authenticated user
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity?.orgId || typeof identity.orgId !== "string") {
-      throw new Error("User must be authenticated with an organization");
-    }
-    const orgId = identity.orgId;
-
-    // Verify branch belongs to user's org
-    const branch = await ctx.db.get(args.branchId);
-    if (!branch) {
-      throw new Error("Branch not found");
-    }
-    const project = await ctx.db.get(branch.projectId);
-    if (!project || project.orgId !== orgId) {
-      throw new Error("Not authorized to access this branch");
-    }
-
-    await ctx.db.patch(args.branchId, {
-      sandboxId: args.sandboxId,
-      sandboxVolumeId: args.volumeId,
-    });
-
-    return null;
-  },
-});
 
 // Mutation to update sandbox domain
 export const updateBranchSandboxDomain = mutation({
@@ -332,7 +310,7 @@ export const updateBranchSandboxDomain = mutation({
   },
 });
 
-// Mutation to clear loading stage and mark sandbox as ready
+// Mutation to clear loading stage and mark sandbox as running
 export const clearBranchSandboxLoadingStage = mutation({
   args: {
     branchId: v.id("branches"),
@@ -357,7 +335,7 @@ export const clearBranchSandboxLoadingStage = mutation({
     }
 
     await ctx.db.patch(args.branchId, {
-      sandboxStatus: "ready",
+      sandboxStatus: "running",
       sandboxLoadingStage: undefined,
     });
 
@@ -375,8 +353,10 @@ export const updateBranchDevServerSession = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     await ctx.db.patch(args.branchId, {
-      devSessionId: args.devSessionId,
-      devCommandId: args.devCommandId,
+      devServer: {
+        sessionId: args.devSessionId,
+        commandId: args.devCommandId,
+      },
     });
     return null;
   },
@@ -392,21 +372,22 @@ export const updateBranchWorkerSession = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     await ctx.db.patch(args.branchId, {
-      workerSessionId: args.workerSessionId,
-      workerCommandId: args.workerCommandId,
+      worker: {
+        sessionId: args.workerSessionId,
+        commandId: args.workerCommandId,
+      },
     });
     return null;
   },
 });
 
-// Mutation to update sandbox to "ready" status
+// Mutation to update sandbox to "running" status
 export const updateBranchSandboxReady = mutation({
   args: {
     branchId: v.id("branches"),
     sandboxId: v.string(),
     domain: v.string(),
     previewToken: v.optional(v.string()),
-    aliveUntil: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -427,19 +408,13 @@ export const updateBranchSandboxReady = mutation({
       throw new Error("Not authorized to access this branch");
     }
 
-    const patchData: any = {
+    await ctx.db.patch(args.branchId, {
       sandboxId: args.sandboxId,
       sandboxDomain: args.domain,
       sandboxPreviewToken: args.previewToken,
-      sandboxStatus: "ready",
+      sandboxStatus: "running",
       sandboxLoadingStage: undefined,
-    };
-
-    if (args.aliveUntil) {
-      patchData.sandboxAliveUntil = args.aliveUntil;
-    }
-
-    await ctx.db.patch(args.branchId, patchData);
+    });
 
     return null;
   },
@@ -507,14 +482,14 @@ export const initBranchSandbox = mutation({
     }
 
     // Check if sandbox is already being created
-    if (branch.sandboxStatus === "creating") {
+    if (branch.sandboxStatus === "provisioning") {
       throw new Error(
         "A sandbox is already being created for this branch. Please wait.",
       );
     }
 
     await ctx.db.patch(args.branchId, {
-      sandboxStatus: "creating",
+      sandboxStatus: "provisioning",
       sandboxError: undefined,
       sandboxLoadingStage: "provisioning",
     });
@@ -523,16 +498,15 @@ export const initBranchSandbox = mutation({
   },
 });
 
-// Mutation to update sandbox state (started/stopped/archived)
+// Mutation to update sandbox status (running/stopped/archived)
 export const updateBranchSandboxState = mutation({
   args: {
     branchId: v.id("branches"),
     state: v.union(
-      v.literal("started"),
+      v.literal("running"),
       v.literal("stopped"),
       v.literal("archived"),
     ),
-    aliveUntil: v.optional(v.number()), // Optional: set when sandbox starts
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -553,18 +527,9 @@ export const updateBranchSandboxState = mutation({
       throw new Error("Not authorized to access this branch");
     }
 
-    const patchData: any = {
-      sandboxState: args.state,
-    };
-
-    // Set aliveUntil if provided, otherwise clear it if stopped/archived
-    if (args.aliveUntil) {
-      patchData.sandboxAliveUntil = args.aliveUntil;
-    } else if (args.state === "stopped" || args.state === "archived") {
-      patchData.sandboxAliveUntil = undefined;
-    }
-
-    await ctx.db.patch(args.branchId, patchData);
+    await ctx.db.patch(args.branchId, {
+      sandboxStatus: args.state,
+    });
 
     return null;
   },
@@ -610,54 +575,55 @@ export const getBranchByIdPublic = query({
   args: {
     branchId: v.id("branches"),
   },
-  returns: v.union(
-    v.object({
-      _id: v.id("branches"),
-      _creationTime: v.number(),
-      projectId: v.id("projects"),
-      branchName: v.string(),
-      agentSessionId: v.optional(v.string()),
-      createdAt: v.number(),
-      permissionMode: v.optional(
-        v.union(
-          v.literal("default"),
-          v.literal("acceptEdits"),
-          v.literal("bypassPermissions"),
-        ),
-      ),
-      sandboxId: v.optional(v.string()),
-      sandboxVolumeId: v.optional(v.string()),
-      sandboxStatus: v.optional(
-        v.union(v.literal("creating"), v.literal("ready"), v.literal("error")),
-      ),
-      sandboxState: v.optional(
-        v.union(
-          v.literal("started"),
-          v.literal("stopped"),
-          v.literal("archived"),
-        ),
-      ),
-      sandboxDomain: v.optional(v.string()),
-      sandboxPreviewToken: v.optional(v.string()),
-      sandboxError: v.optional(v.string()),
-      sandboxAliveUntil: v.optional(v.number()),
-      sandboxLoadingStage: v.optional(
-        v.union(
-          v.literal("provisioning"),
-          v.literal("installing"),
-          v.literal("starting"),
-        ),
-      ),
-      devSessionId: v.optional(v.string()),
-      devCommandId: v.optional(v.string()),
-      workerSessionId: v.optional(v.string()),
-      workerCommandId: v.optional(v.string()),
-    }),
-    v.null(),
-  ),
+  returns: v.union(branchReturnType, v.null()),
   handler: async (ctx, args) => {
     // No auth check - this is intentionally public for the proxy service
     const branch = await ctx.db.get(args.branchId);
+    return branch || null;
+  },
+});
+
+// Public query to get branch by org slug, project slug, and branch name (for preview proxy)
+export const getBranchByOrgSlugProjectSlugAndBranchName = query({
+  args: {
+    orgSlug: v.string(),
+    projectSlug: v.string(),
+    branchName: v.string(),
+  },
+  returns: v.union(branchReturnType, v.null()),
+  handler: async (ctx, args) => {
+    // No auth check - this is intentionally public for the proxy service
+
+    // First, find the organization by slug
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_slug", (q) => q.eq("slug", args.orgSlug))
+      .first();
+
+    if (!org) {
+      return null;
+    }
+
+    // Find the project by org and slug
+    const project = await ctx.db
+      .query("projects")
+      .withIndex("by_org_and_slug", (q) =>
+        q.eq("orgId", org.orgId).eq("slug", args.projectSlug)
+      )
+      .first();
+
+    if (!project) {
+      return null;
+    }
+
+    // Find the branch by project and branch name
+    const branch = await ctx.db
+      .query("branches")
+      .withIndex("by_project_and_branch_name", (q) =>
+        q.eq("projectId", project._id).eq("branchName", args.branchName)
+      )
+      .first();
+
     return branch || null;
   },
 });
@@ -668,51 +634,7 @@ export const getBranchByProjectAndName = query({
     projectId: v.id("projects"),
     branchName: v.string(),
   },
-  returns: v.union(
-    v.object({
-      _id: v.id("branches"),
-      _creationTime: v.number(),
-      projectId: v.id("projects"),
-      branchName: v.string(),
-      agentSessionId: v.optional(v.string()),
-      createdAt: v.number(),
-      permissionMode: v.optional(
-        v.union(
-          v.literal("default"),
-          v.literal("acceptEdits"),
-          v.literal("bypassPermissions"),
-        ),
-      ),
-      sandboxId: v.optional(v.string()),
-      sandboxVolumeId: v.optional(v.string()),
-      sandboxStatus: v.optional(
-        v.union(v.literal("creating"), v.literal("ready"), v.literal("error")),
-      ),
-      sandboxState: v.optional(
-        v.union(
-          v.literal("started"),
-          v.literal("stopped"),
-          v.literal("archived"),
-        ),
-      ),
-      sandboxDomain: v.optional(v.string()),
-      sandboxPreviewToken: v.optional(v.string()),
-      sandboxError: v.optional(v.string()),
-      sandboxAliveUntil: v.optional(v.number()),
-      sandboxLoadingStage: v.optional(
-        v.union(
-          v.literal("provisioning"),
-          v.literal("installing"),
-          v.literal("starting"),
-        ),
-      ),
-      devSessionId: v.optional(v.string()),
-      devCommandId: v.optional(v.string()),
-      workerSessionId: v.optional(v.string()),
-      workerCommandId: v.optional(v.string()),
-    }),
-    v.null(),
-  ),
+  returns: v.union(branchReturnType, v.null()),
   handler: async (ctx, args) => {
     // Find branch by project and name
     const branch = await ctx.db

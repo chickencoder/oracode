@@ -15,6 +15,44 @@ import { generateClerkTokenForConvex } from "./lib/clerkAuth";
 import { buildOracodeImage } from "./lib/daytonaImage";
 import { buildEnvExports } from "./lib/shellUtils";
 
+/**
+ * Generate URL-friendly slug from a name
+ */
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-") // Replace non-alphanumeric with hyphens
+    .replace(/^-+|-+$/g, ""); // Remove leading/trailing hyphens
+}
+
+/**
+ * Build preview URL from org, project, and branch information
+ * Format: {branchName}-{projectSlug}-{orgSlug}.preview.oracode.local
+ */
+async function buildPreviewUrl(
+  ctx: ActionCtx,
+  branchName: string,
+  projectSlug: string,
+  orgId: string,
+): Promise<string> {
+  // Get organization to get slug
+  const org = await ctx.runQuery(api.organizations.getByClerkId, {
+    clerkOrgId: orgId,
+  });
+
+  if (!org) {
+    throw new Error(`Organization not found: ${orgId}`);
+  }
+
+  const slugifiedBranchName = slugify(branchName);
+  const host =
+    process.env.NODE_ENV === "production"
+      ? "preview.oracode.dev"
+      : "preview.oracode.local";
+
+  return `https://${slugifiedBranchName}-${projectSlug}-${org.slug}.${host}`;
+}
+
 // Helper function to build dev command with environment variables
 async function buildDevCommandWithEnv(
   ctx: ActionCtx,
@@ -89,22 +127,19 @@ export const startSandbox = action({
       // Step 3: Handle existing sandbox scenarios
       if (branch.sandboxStatus) {
         // If already creating, return error to prevent duplicates
-        if (branch.sandboxStatus === "creating") {
+        if (branch.sandboxStatus === "provisioning" || branch.sandboxStatus === "starting") {
           throw new Error(
             "A sandbox is already being created for this branch. Please wait.",
           );
         }
 
-        // If ready and started, return existing
-        if (
-          branch.sandboxStatus === "ready" &&
-          branch.sandboxState === "started"
-        ) {
-          console.log("Returning existing ready sandbox");
+        // If running, return existing
+        if (branch.sandboxStatus === "running") {
+          console.log("Returning existing running sandbox");
           return {
             sandboxId: branch.sandboxId!,
             domain: branch.sandboxDomain!,
-            status: "ready",
+            status: "running",
           };
         }
 
@@ -224,16 +259,16 @@ export const startSandbox = action({
       await sandbox.setAutostopInterval(10);
       console.log("Auto-stop configured");
 
-      // Step 11: Store sandboxId and state
+      // Step 11: Store sandboxId and status
       await ctx.runMutation(api.branches.updateBranchSandbox, {
         branchId: args.branchId,
         sandboxId: sandboxId,
       });
       await ctx.runMutation(api.branches.updateBranchSandboxState, {
         branchId: args.branchId,
-        state: "started",
+        state: "running",
       });
-      console.log("Stored sandbox ID and state as started");
+      console.log("Stored sandbox ID and status as running");
 
       // Step 12: Get working directory
       // (pnpm + Claude SDK are pre-installed in the declarative image)
@@ -424,15 +459,26 @@ export const startSandbox = action({
       // Step 18: Get domain/preview URL using Daytona's preview link API
       console.log("Getting preview link for port:", project.settings.port);
       const previewLink = await sandbox.getPreviewLink(project.settings.port);
-      const domain = previewLink.url;
+      const daytonaDomain = previewLink.url;
       const previewToken = previewLink.token;
-      console.log("Sandbox domain:", domain);
+      console.log("Daytona sandbox domain:", daytonaDomain);
       console.log("Preview token:", previewToken ? "present" : "none");
 
-      // Store domain and token in branch
+      // Build our custom preview URL
+      const projectSlug = project.slug || slugify(project.name);
+      const customPreviewUrl = await buildPreviewUrl(
+        ctx,
+        branch.branchName,
+        projectSlug,
+        identity.orgId,
+      );
+      console.log("Custom preview URL:", customPreviewUrl);
+
+      // Store both Daytona domain (for internal proxy use) and custom preview URL
+      // The sandboxDomain field will store the Daytona domain for backend proxy
       await ctx.runMutation(api.branches.updateBranchSandboxDomain, {
         branchId: args.branchId,
-        domain,
+        domain: daytonaDomain,
         previewToken,
       });
       console.log("Stored sandbox domain and token");
@@ -482,9 +528,9 @@ export const startSandbox = action({
       console.log("=== startSandbox action complete ===");
 
       return {
-        sandboxId: sandboxId, // Fixed: use stored sandboxId not sandbox.id
-        domain,
-        status: "ready",
+        sandboxId: sandboxId,
+        domain: customPreviewUrl,
+        status: "running",
       };
     } catch (error) {
       console.error("=== startSandbox action failed ===");
@@ -495,7 +541,7 @@ export const startSandbox = action({
         const branch = await ctx.runQuery(api.branches.getBranchById, {
           branchId: args.branchId,
         });
-        if (branch && branch.sandboxStatus === "creating") {
+        if (branch && (branch.sandboxStatus === "provisioning" || branch.sandboxStatus === "starting")) {
           await ctx.runMutation(api.branches.updateBranchSandboxError, {
             branchId: args.branchId,
             error:
@@ -548,13 +594,13 @@ export const restartSandbox = action({
         throw new Error("No sandbox found for this branch");
       }
 
-      // Check if sandbox is already running and ready - return early (idempotent)
-      if (branch.sandboxState === "started" && branch.sandboxStatus === "ready") {
+      // Check if sandbox is already running - return early (idempotent)
+      if (branch.sandboxStatus === "running") {
         console.log("Sandbox is already running, returning current state");
         return {
           sandboxId: branch.sandboxId,
           domain: branch.sandboxDomain || "",
-          status: "ready",
+          status: "running",
         };
       }
 
@@ -599,7 +645,7 @@ export const restartSandbox = action({
       // Update state to started
       await ctx.runMutation(api.branches.updateBranchSandboxState, {
         branchId: args.branchId,
-        state: "started",
+        state: "running",
       });
       console.log("Updated sandbox state to started");
 
@@ -752,7 +798,7 @@ export const restartSandbox = action({
       return {
         sandboxId: branch.sandboxId,
         domain,
-        status: "ready",
+        status: "running",
       };
     } catch (error) {
       console.error("=== restartSandbox action failed ===");
@@ -890,7 +936,7 @@ export const resumeSandbox = action({
       }
 
       // Check if sandbox is stopped (based on sandboxState from Daytona webhooks)
-      const isStopped = branch.sandboxState === "stopped" || branch.sandboxState === "archived";
+      const isStopped = branch.sandboxStatus === "stopped" || branch.sandboxStatus === "archived";
 
       if (!isStopped) {
         console.log("Sandbox is not stopped, returning current state");
@@ -932,7 +978,7 @@ export const resumeSandbox = action({
       // Update state to started
       await ctx.runMutation(api.branches.updateBranchSandboxState, {
         branchId: args.branchId,
-        state: "started",
+        state: "running",
       });
       console.log("Updated sandbox state to started");
 
@@ -1085,7 +1131,7 @@ export const resumeSandbox = action({
       return {
         sandboxId: branch.sandboxId,
         domain,
-        status: "ready",
+        status: "running",
       };
     } catch (error) {
       console.error("=== resumeSandbox action failed ===");
@@ -1135,7 +1181,7 @@ export const getDevServerLogs = action({
         throw new Error("No sandbox found");
       }
 
-      if (!branch.devSessionId || !branch.devCommandId) {
+      if (!branch.devServer?.sessionId || !branch.devServer?.commandId) {
         return {
           success: true,
           logs: "Dev server session not found or not started yet.",
@@ -1152,8 +1198,8 @@ export const getDevServerLogs = action({
 
       // Get dev server logs from session
       const logsResponse = await sandbox.process.getSessionCommandLogs(
-        branch.devSessionId,
-        branch.devCommandId,
+        branch.devServer.sessionId,
+        branch.devServer.commandId,
       );
 
       const logs: string = logsResponse.output || "No logs available";
@@ -1210,7 +1256,6 @@ export const pingSandbox = action({
     console.log("Current state:", {
       sandboxId: branch.sandboxId,
       sandboxStatus: branch.sandboxStatus,
-      sandboxState: branch.sandboxState,
     });
 
     // Decision tree: What action should we take?
@@ -1224,7 +1269,7 @@ export const pingSandbox = action({
     }
 
     // Case 2: Sandbox is archived - needs full restart
-    if (branch.sandboxState === "archived") {
+    if (branch.sandboxStatus === "archived") {
       console.log("Sandbox is archived, delegating to retrySandbox");
       return await ctx.runAction(api.sandboxActions.retrySandbox, {
         branchId: args.branchId,
@@ -1232,25 +1277,25 @@ export const pingSandbox = action({
     }
 
     // Case 3: Sandbox is stopped - just resume it
-    if (branch.sandboxState === "stopped") {
+    if (branch.sandboxStatus === "stopped") {
       console.log("Sandbox is stopped, delegating to resumeSandbox");
       return await ctx.runAction(api.sandboxActions.resumeSandbox, {
         branchId: args.branchId,
       });
     }
 
-    // Case 4: Sandbox is already started and ready - return current state
-    if (branch.sandboxState === "started" && branch.sandboxStatus === "ready") {
+    // Case 4: Sandbox is already running - return current state
+    if (branch.sandboxStatus === "running") {
       console.log("Sandbox is already running, returning current state");
       return {
         sandboxId: branch.sandboxId,
         domain: branch.sandboxDomain || "",
-        status: "ready",
+        status: "running",
       };
     }
 
     // Case 5: Sandbox is being created or in an error state
-    if (branch.sandboxStatus === "creating") {
+    if (branch.sandboxStatus === "provisioning") {
       console.log("Sandbox is being created, returning current state");
       return {
         sandboxId: branch.sandboxId,

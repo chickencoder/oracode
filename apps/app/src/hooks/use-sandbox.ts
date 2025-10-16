@@ -4,6 +4,16 @@ import type { Id } from "@repo/convex/_generated/dataModel";
 import { useEffect, useState } from "react";
 import { useOrganization } from "@clerk/clerk-react";
 
+/**
+ * Generate URL-friendly slug from a name
+ */
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-") // Replace non-alphanumeric with hyphens
+    .replace(/^-+|-+$/g, ""); // Remove leading/trailing hyphens
+}
+
 export function useSandbox(branchId: Id<"branches"> | null | undefined) {
   const { organization } = useOrganization();
 
@@ -13,21 +23,33 @@ export function useSandbox(branchId: Id<"branches"> | null | undefined) {
     branchId && organization?.id ? { branchId } : "skip",
   );
 
+  // Query project to get slug
+  const project = useQuery(
+    api.projects.getProjectById,
+    branch ? { projectId: branch.projectId } : "skip",
+  );
+
+  // Query organization to get slug
+  const org = useQuery(
+    api.organizations.getByClerkId,
+    organization?.id ? { clerkOrgId: organization.id } : "skip",
+  );
+
   // Single orchestrator action
   const pingSandbox = useAction(api.sandboxActions.pingSandbox);
 
   // Track if we're currently pinging
   const [isPinging, setIsPinging] = useState(false);
 
-  // Ping sandbox when state indicates it needs attention
+  // Ping sandbox when status indicates it needs attention
   useEffect(() => {
     if (!branchId || !branch || isPinging) return;
 
     // Determine if sandbox needs action
     const needsAction =
       !branch.sandboxId || // No sandbox yet
-      branch.sandboxState === "stopped" || // Stopped by Daytona
-      branch.sandboxState === "archived" || // Archived
+      branch.sandboxStatus === "stopped" || // Stopped by Daytona
+      branch.sandboxStatus === "archived" || // Archived
       branch.sandboxStatus === "error"; // In error state
 
     if (needsAction) {
@@ -58,21 +80,24 @@ export function useSandbox(branchId: Id<"branches"> | null | undefined) {
 
   // Compute derived state
   const isStopped =
-    branch?.sandboxState === "stopped" || branch?.sandboxState === "archived";
+    branch?.sandboxStatus === "stopped" || branch?.sandboxStatus === "archived";
   const isReady =
-    branch?.sandboxStatus === "ready" &&
-    branch?.sandboxState === "started" &&
+    branch?.sandboxStatus === "running" &&
     !!branch?.sandboxDomain;
-  const previewUrl = branchId
-    ? `http://preview-${branchId}.oracode.local`
-    : "";
+
+  // Build preview URL from slugs
+  // Format: {projectSlug}-git-{branch}.{orgSlug}.oracode.local
+  const previewUrl =
+    branch && project && org && project.slug && org.slug
+      ? `https://${project.slug}-git-${slugify(branch.branchName)}.${org.slug}.oracode.local`
+      : "";
 
   return {
     sandbox: branch,
-    isCreating: branch?.sandboxStatus === "creating" || isPinging,
+    isCreating: branch?.sandboxStatus === "provisioning" || branch?.sandboxStatus === "starting" || isPinging,
     isReady,
     isStopped,
-    isArchived: branch?.sandboxState === "archived",
+    isArchived: branch?.sandboxStatus === "archived",
     hasError: branch?.sandboxStatus === "error",
     domain: branch?.sandboxDomain || "",
     previewUrl,

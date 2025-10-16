@@ -2,6 +2,15 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
+  // Organizations synced from Clerk
+  orgs: defineTable({
+    orgId: v.string(), // Clerk organization ID (org_xxx)
+    slug: v.string(), // URL-friendly slug from Clerk
+    name: v.string(), // Organization name
+  })
+    .index("by_org_id", ["orgId"])
+    .index("by_slug", ["slug"]),
+
   users: defineTable({
     clerkId: v.string(), // Clerk user ID (unique identifier)
     name: v.string(), // Full name
@@ -42,25 +51,19 @@ export default defineSchema({
     ),
     // Sandbox fields (1:1 relationship)
     sandboxId: v.optional(v.string()), // Sandbox ID
-    sandboxVolumeId: v.optional(v.string()), // Daytona Volume ID for persistent storage
     sandboxStatus: v.optional(
       v.union(
-        v.literal("creating"), // Being provisioned
-        v.literal("ready"), // Running and available
-        v.literal("error"), // Failed to create
-      ),
-    ),
-    sandboxState: v.optional(
-      v.union(
-        v.literal("started"), // Sandbox is running
-        v.literal("stopped"), // Sandbox is stopped (auto-stopped or manually)
-        v.literal("archived"), // Sandbox is archived (after 7 days stopped)
+        v.literal("provisioning"), // Being provisioned
+        v.literal("starting"), // Starting up
+        v.literal("running"), // Running and ready
+        v.literal("stopped"), // VM stopped (auto-stopped or manually)
+        v.literal("archived"), // Archived after 7 days stopped
+        v.literal("error"), // Failed to create or run
       ),
     ),
     sandboxDomain: v.optional(v.string()), // Public domain for web preview
     sandboxPreviewToken: v.optional(v.string()), // Auth token for preview URL (private sandboxes)
     sandboxError: v.optional(v.string()), // Error message if failed
-    sandboxAliveUntil: v.optional(v.number()), // Timestamp when sandbox will auto-stop (based on 10min interval)
     sandboxLoadingStage: v.optional(
       v.union(
         v.literal("provisioning"), // Creating sandbox
@@ -69,14 +72,25 @@ export default defineSchema({
       ),
     ),
     // Sandbox session tracking for long-running processes
-    devSessionId: v.optional(v.string()), // Session for dev server
-    devCommandId: v.optional(v.string()), // Command ID for dev server
-    workerSessionId: v.optional(v.string()), // Session for worker
-    workerCommandId: v.optional(v.string()), // Command ID for worker
-  }).index("by_project", ["projectId"]),
+    devServer: v.optional(
+      v.object({
+        sessionId: v.string(),
+        commandId: v.string(),
+      }),
+    ),
+    worker: v.optional(
+      v.object({
+        sessionId: v.string(),
+        commandId: v.string(),
+      }),
+    ),
+  })
+    .index("by_project", ["projectId"])
+    .index("by_project_and_branch_name", ["projectId", "branchName"])
+    .index("by_sandbox_id", ["sandboxId"]),
 
   // Permission requests for tool use approval
-  pendingPermissions: defineTable({
+  permissions: defineTable({
     id: v.string(), // UUID for tracking
     branchId: v.id("branches"),
     toolName: v.string(),
@@ -124,6 +138,7 @@ export default defineSchema({
     orgId: v.string(), // Link to Clerk organization
     githubRepoId: v.number(), // GitHub repository ID
     name: v.string(), // Project name
+    slug: v.optional(v.string()), // URL-friendly project slug (optional for migration)
     description: v.string(), // Project description
     settings: v.object({
       installCommand: v.string(), // Command to install dependencies
@@ -132,7 +147,9 @@ export default defineSchema({
       projectRoot: v.optional(v.string()), // Optional subdirectory path within repo (e.g., "apps/frontend" for monorepos)
     }),
     createdAt: v.number(),
-  }).index("by_org", ["orgId"]),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_and_slug", ["orgId", "slug"]),
 
   // Encrypted secret storage (pure storage, no business logic)
   secrets: defineTable({

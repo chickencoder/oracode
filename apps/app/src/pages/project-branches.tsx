@@ -42,9 +42,9 @@ import { CreateBranchDialog } from "@/components/create-branch-dialog";
 import { toast } from "sonner";
 
 export function ProjectBranchesPage() {
-  const { orgSlug, projectId } = useParams<{
+  const { orgSlug, projectSlug } = useParams<{
     orgSlug: string;
-    projectId: string;
+    projectSlug: string;
   }>();
   const navigate = useNavigate();
   const { organization } = useOrganization();
@@ -57,19 +57,25 @@ export function ProjectBranchesPage() {
   } | null>(null);
   const deleteBranch = useMutation(api.branches.deleteBranch);
 
+  const project = useQuery(
+    api.projects.getProjectByOrgAndSlug,
+    projectSlug && organization?.id
+      ? { orgId: organization.id, slug: projectSlug }
+      : "skip",
+  );
+
   const branches = useQuery(
     api.branches.getBranchesByProject,
-    projectId && organization?.id
-      ? { projectId: projectId as Id<"projects"> }
-      : "skip",
+    project?._id ? { projectId: project._id } : "skip",
   );
 
   const handleCreateBranch = () => {
     setIsModalOpen(true);
   };
 
-  const handleBranchClick = (branchId: Id<"branches">) => {
-    navigate(`/${orgSlug}/branches/${branchId}`);
+  const handleBranchClick = (branchName: string) => {
+    if (!project || !project.slug) return;
+    navigate(`/${orgSlug}/${project.slug}/${branchName}`);
   };
 
   const handleDeleteClick = (
@@ -123,11 +129,11 @@ export function ProjectBranchesPage() {
         <Button onClick={handleCreateBranch}>New Branch</Button>
       </div>
 
-      {projectId && orgSlug && (
+      {project?._id && orgSlug && (
         <CreateBranchDialog
           open={isModalOpen}
           onOpenChange={setIsModalOpen}
-          projectId={projectId as Id<"projects">}
+          projectId={project._id}
           orgSlug={orgSlug}
         />
       )}
@@ -167,7 +173,7 @@ export function ProjectBranchesPage() {
                 <TableRow
                   key={branch._id}
                   className="cursor-pointer"
-                  onClick={() => handleBranchClick(branch._id)}
+                  onClick={() => handleBranchClick(branch.branchName)}
                 >
                   <TableCell className="font-medium pl-3">
                     <div className="flex items-center gap-2">
@@ -181,19 +187,19 @@ export function ProjectBranchesPage() {
                     })}
                   </TableCell>
                   <TableCell>
-                    {branch.sandboxStatus === "ready" ? (
+                    {branch.sandboxStatus === "running" ? (
                       <Badge
                         variant="outline"
                         className="border-green-600/20 bg-green-600/10 text-green-600 dark:border-green-400/20 dark:bg-green-400/10 dark:text-green-400"
                       >
-                        Ready
+                        Running
                       </Badge>
-                    ) : branch.sandboxStatus === "creating" ? (
+                    ) : branch.sandboxStatus === "provisioning" || branch.sandboxStatus === "starting" ? (
                       <Badge
                         variant="outline"
                         className="border-yellow-600/20 bg-yellow-600/10 text-yellow-600 dark:border-yellow-400/20 dark:bg-yellow-400/10 dark:text-yellow-400"
                       >
-                        Creating
+                        Starting
                       </Badge>
                     ) : branch.sandboxStatus === "error" ? (
                       <Badge
