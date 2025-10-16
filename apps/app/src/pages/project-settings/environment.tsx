@@ -28,17 +28,23 @@ interface EnvVar {
 }
 
 export function EnvironmentVariablesPage() {
-  const { projectId } = useParams<{ projectId: string }>();
+  const { projectSlug } = useParams<{ projectSlug: string }>();
   const { organization } = useOrganization();
   const [envVars, setEnvVars] = useState<EnvVar[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Get project first
+  const project = useQuery(
+    api.projects.getProjectByOrgAndSlug,
+    projectSlug && organization?.id
+      ? { orgId: organization.id, slug: projectSlug }
+      : "skip",
+  );
+
   // Load environment variables from the new secure storage
   const existingVars = useQuery(
     api.variables.list,
-    projectId && organization?.id
-      ? { projectId: projectId as Id<"projects"> }
-      : "skip",
+    project?._id ? { projectId: project._id } : "skip",
   );
 
   const setEnvVar = useAction(api.variables.set);
@@ -135,7 +141,7 @@ export function EnvironmentVariablesPage() {
   };
 
   const handleSave = async () => {
-    if (!projectId) return;
+    if (!project) return;
 
     setIsSaving(true);
     try {
@@ -144,7 +150,7 @@ export function EnvironmentVariablesPage() {
       for (const envVar of deletions) {
         try {
           await removeEnvVar({
-            projectId: projectId as Id<"projects">,
+            projectId: project._id,
             key: envVar.key,
           });
         } catch (error) {
@@ -162,7 +168,7 @@ export function EnvironmentVariablesPage() {
         if (envVar.value.trim()) {
           try {
             await setEnvVar({
-              projectId: projectId as Id<"projects">,
+              projectId: project._id,
               key: envVar.key,
               value: envVar.value,
             });

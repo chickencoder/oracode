@@ -36,9 +36,9 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 export function GeneralSettingsPage() {
-  const { orgSlug, projectId } = useParams<{
+  const { orgSlug, projectSlug } = useParams<{
     orgSlug: string;
-    projectId: string;
+    projectSlug: string;
   }>();
   const navigate = useNavigate();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -46,9 +46,9 @@ export function GeneralSettingsPage() {
 
   const updateProject = useMutation(api.projects.updateProject);
   const project = useQuery(
-    api.projects.getProjectById,
-    projectId && organization?.id
-      ? { projectId: projectId as Id<"projects"> }
+    api.projects.getProjectByOrgAndSlug,
+    projectSlug && organization?.id
+      ? { orgId: organization.id, slug: projectSlug }
       : "skip",
   );
 
@@ -71,11 +71,11 @@ export function GeneralSettingsPage() {
   }, [project, form]);
 
   const onSubmit = async (values: FormValues) => {
-    if (!projectId || !project) return;
+    if (!project) return;
 
     try {
       await updateProject({
-        projectId: projectId as Id<"projects">,
+        projectId: project._id,
         name: values.name,
         description: values.description,
         settings: project.settings, // Keep existing settings

@@ -9,12 +9,12 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "hono": "^4.7.9",
-    "convex": "^1.18.4"
+    "convex": "^1.18.4",
+    "hono": "^4.7.9"
   },
   "devDependencies": {
-    "wrangler": "^3.103.0",
+    "@cloudflare/workers-types": "^4.20250110.0",
     "typescript": "^5.9.3",
-    "@cloudflare/workers-types": "^4.20250110.0"
+    "wrangler": "^4.43.0"
   }
 }

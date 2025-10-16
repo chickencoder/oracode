@@ -7,23 +7,33 @@ type Bindings = {
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-function parseHostname(hostname: string): { branchId: string } | null {
+function parseHostname(
+  hostname: string
+): { branchName: string; projectSlug: string; orgSlug: string } | null {
   const parts = hostname.split(".");
+
+  // Check for valid oracode domain: {projectSlug}-git-{branch}.{orgSlug}.oracode.local
   if (
-    parts.length !== 3 ||
-    parts[1] !== "oracode" ||
-    (parts[2] !== "dev" && parts[2] !== "local")
+    parts.length === 4 &&
+    parts[2] === "oracode" &&
+    (parts[3] === "local" || parts[3] === "dev")
   ) {
-    return null;
+    const orgSlug = parts[1];
+    const firstPart = parts[0];
+
+    // Must have format: {projectSlug}-git-{branch}
+    const gitIndex = firstPart.indexOf("-git-");
+    if (gitIndex !== -1) {
+      const projectSlug = firstPart.substring(0, gitIndex);
+      const branchName = firstPart.substring(gitIndex + 5); // +5 for "-git-"
+
+      if (projectSlug && branchName) {
+        return { branchName, projectSlug, orgSlug };
+      }
+    }
   }
 
-  const firstPart = parts[0];
-  if (!firstPart.startsWith("preview-")) {
-    return null;
-  }
-
-  const branchId = firstPart.substring("preview-".length);
-  return branchId ? { branchId } : null;
+  return null;
 }
 
 app.options("*", async (c) => {
@@ -41,22 +51,26 @@ app.all("*", async (c) => {
 
   if (!parsed) {
     return c.html(
-      `<html><body><h1>Invalid URL Format</h1><p>Expected format: preview-branchId.oracode.dev (or .local for local dev)</p></body></html>`,
+      `<html><body><h1>Invalid URL Format</h1><p>Expected format: {projectSlug}-git-{branch}.{orgSlug}.oracode.local</p></body></html>`,
       400,
     );
   }
 
-  const { branchId } = parsed;
   const convex = new ConvexHttpClient(c.env.CONVEX_URL);
 
   try {
-    const branch = await convex.query("branches:getBranchByIdPublic" as any, {
-      branchId: branchId,
-    });
+    const branch = await convex.query(
+      "branches:getBranchByOrgSlugProjectSlugAndBranchName" as any,
+      {
+        orgSlug: parsed.orgSlug,
+        projectSlug: parsed.projectSlug,
+        branchName: parsed.branchName,
+      }
+    );
 
     if (!branch) {
       return c.html(
-        `<html><body><h1>Branch Not Found</h1><p>No branch found with ID: ${branchId}</p></body></html>`,
+        `<html><body><h1>Branch Not Found</h1><p>No branch found: ${parsed.orgSlug}/${parsed.projectSlug}/${parsed.branchName}</p></body></html>`,
         404,
       );
     }

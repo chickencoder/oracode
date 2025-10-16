@@ -69,9 +69,9 @@ export const createPermissionRequest = mutation({
     orgId: v.string(),
     userId: v.string(),
   },
-  returns: v.id("pendingPermissions"),
+  returns: v.id("permissions"),
   handler: async (ctx, args) => {
-    const permissionId = await ctx.db.insert("pendingPermissions", {
+    const permissionId = await ctx.db.insert("permissions", {
       id: args.id,
       branchId: args.branchId,
       toolName: args.toolName,
@@ -95,7 +95,7 @@ export const getPendingPermissions = query({
   },
   returns: v.array(
     v.object({
-      _id: v.id("pendingPermissions"),
+      _id: v.id("permissions"),
       _creationTime: v.number(),
       id: v.string(),
       branchId: v.id("branches"),
@@ -111,7 +111,7 @@ export const getPendingPermissions = query({
   ),
   handler: async (ctx, args) => {
     const permissions = await ctx.db
-      .query("pendingPermissions")
+      .query("permissions")
       .withIndex("by_branch_and_status", (q) =>
         q.eq("branchId", args.branchId).eq("status", "pending"),
       )
@@ -131,7 +131,7 @@ export const getPermissionById = query({
   returns: v.union(
     v.null(),
     v.object({
-      _id: v.id("pendingPermissions"),
+      _id: v.id("permissions"),
       _creationTime: v.number(),
       id: v.string(),
       branchId: v.id("branches"),
@@ -147,7 +147,7 @@ export const getPermissionById = query({
   ),
   handler: async (ctx, args) => {
     const permission = await ctx.db
-      .query("pendingPermissions")
+      .query("permissions")
       .filter((q) => q.eq(q.field("id"), args.id))
       .first();
 
@@ -167,7 +167,7 @@ export const resolvePermission = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const permission = await ctx.db
-      .query("pendingPermissions")
+      .query("permissions")
       .filter((q) => q.eq(q.field("id"), args.id))
       .first();
 
@@ -200,7 +200,7 @@ export const cleanupOldPermissions = mutation({
     const cutoffTime = Date.now() - (args.olderThanMs || 60 * 60 * 1000);
 
     const oldPermissions = await ctx.db
-      .query("pendingPermissions")
+      .query("permissions")
       .withIndex("by_branch", (q) => q.eq("branchId", args.branchId))
       .filter((q) =>
         q.and(

@@ -16,8 +16,8 @@ const githubInstallationSchema = z.object({
 
 const http = httpRouter();
 
-// Helper function to verify GitHub webhook signature using Web Crypto API
-async function verifyGitHubSignature(
+// Helper function to verify webhook signature using HMAC-SHA256
+async function verifyWebhookSignature(
   payload: string,
   signature: string,
   secret: string
@@ -37,21 +37,89 @@ async function verifyGitHubSignature(
     encoder.encode(payload)
   );
 
-  const expectedSignature = "sha256=" + Array.from(new Uint8Array(signatureBytes))
+  // Try different signature formats that webhooks commonly use
+  const hexSignature = Array.from(new Uint8Array(signatureBytes))
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
 
-  // Constant-time comparison
-  if (signature.length !== expectedSignature.length) {
-    return false;
+  // Format 1: "sha256=<hex>" (GitHub style)
+  const expectedSignature1 = "sha256=" + hexSignature;
+  // Format 2: Just hex
+  const expectedSignature2 = hexSignature;
+
+  // Constant-time comparison for both formats
+  const checkSignature = (expected: string) => {
+    if (signature.length !== expected.length) {
+      return false;
+    }
+    let result = 0;
+    for (let i = 0; i < signature.length; i++) {
+      result |= signature.charCodeAt(i) ^ expected.charCodeAt(i);
+    }
+    return result === 0;
+  };
+
+  return checkSignature(expectedSignature1) || checkSignature(expectedSignature2);
+}
+
+// Helper function to verify GitHub webhook signature (uses same logic)
+async function verifyGitHubSignature(
+  payload: string,
+  signature: string,
+  secret: string
+): Promise<boolean> {
+  return verifyWebhookSignature(payload, signature, secret);
+}
+
+// Helper function to handle Daytona webhook payload
+async function handleDaytonaWebhook(ctx: any, body: any): Promise<Response> {
+  // Actual webhook payload format from Daytona:
+  // {
+  //   "id": "sandbox-id",
+  //   "newState": "starting" | "started" | "stopped" | "unknown" | "destroying" | "destroyed",
+  //   "oldState": "...",
+  //   "organizationId": "...",
+  //   "updatedAt": "2025-10-16T14:44:21.982Z"
+  // }
+
+  const sandboxId = body.id;
+  const newState = body.newState;
+  const oldState = body.oldState;
+
+  if (!sandboxId) {
+    console.error("Invalid webhook payload - missing id:", body);
+    return new Response("Invalid payload", { status: 400 });
   }
 
-  let result = 0;
-  for (let i = 0; i < signature.length; i++) {
-    result |= signature.charCodeAt(i) ^ expectedSignature.charCodeAt(i);
+  console.log("Received Daytona webhook:", { sandboxId, newState, oldState });
+
+  // Map Daytona states to our states
+  // Daytona states: starting, started, stopped, unknown, destroying, destroyed
+  // Our states: started, stopped, archived
+  let mappedState: "started" | "stopped" | "archived" | null = null;
+
+  if (newState === "started") {
+    mappedState = "started";
+  } else if (newState === "stopped") {
+    mappedState = "stopped";
+  } else if (newState === "destroying" || newState === "destroyed") {
+    // Sandbox is being deleted
+    mappedState = "archived";
+  } else if (newState === "starting" || newState === "unknown") {
+    // Transitional states - log but don't update
+    console.log(`Sandbox ${sandboxId} transitioning: ${oldState} -> ${newState}`);
+    return new Response(null, { status: 200 });
   }
 
-  return result === 0;
+  if (mappedState) {
+    await ctx.runMutation(internal.sandboxes.handleSandboxStateChange, {
+      sandboxId,
+      event: `sandbox.${newState}`,
+      state: mappedState,
+    });
+  }
+
+  return new Response(null, { status: 200 });
 }
 
 // GitHub App installation callback (handles both GET and POST)
@@ -193,7 +261,7 @@ http.route({
       return new Response("Invalid signature", { status: 401 });
     }
 
-    // Handle user events
+    // Handle events
     const eventType = payload.type;
 
     if (eventType === "user.created" || eventType === "user.updated") {
@@ -213,9 +281,71 @@ http.route({
         lastName: last_name || undefined,
         imageUrl: image_url || undefined,
       });
+    } else if (eventType === "organization.created" || eventType === "organization.updated") {
+      const { id, slug, name } = payload.data;
+
+      if (!id || !slug || !name) {
+        console.error("Missing required org fields:", { id, slug, name });
+        return new Response("Missing org fields", { status: 400 });
+      }
+
+      await ctx.runMutation(internal.organizations.upsertFromClerk, {
+        clerkOrgId: id,
+        slug: slug,
+        name: name,
+      });
     }
 
     return new Response(null, { status: 200 });
+  }),
+});
+
+// Daytona webhook handler
+http.route({
+  path: "/daytona/webhook",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      // Signature verification (if Daytona provides it)
+      const webhookSecret = process.env.DAYTONA_WEBHOOK_SECRET;
+
+      if (webhookSecret) {
+        // Check for common webhook signature headers
+        // (Daytona may use x-daytona-signature, x-webhook-signature, or similar)
+        const signature =
+          request.headers.get("x-daytona-signature") ||
+          request.headers.get("x-webhook-signature") ||
+          request.headers.get("x-signature");
+
+        if (signature) {
+          // Get raw body for signature verification
+          const rawBody = await request.text();
+
+          // Verify signature using HMAC-SHA256 (common webhook signing method)
+          const isValid = await verifyWebhookSignature(rawBody, signature, webhookSecret);
+
+          if (!isValid) {
+            console.error("Invalid webhook signature");
+            return new Response("Invalid signature", { status: 401 });
+          }
+
+          // Parse the verified body
+          const body = JSON.parse(rawBody);
+          return await handleDaytonaWebhook(ctx, body);
+        } else {
+          console.warn("DAYTONA_WEBHOOK_SECRET configured but no signature header found");
+          // Allow through but log warning
+        }
+      }
+
+      // No secret configured or no signature header - parse body normally
+      const body = await request.json();
+      return await handleDaytonaWebhook(ctx, body);
+
+    } catch (error) {
+      console.error("Daytona webhook error:", error);
+      return new Response("Internal error", { status: 500 });
+    }
   }),
 });
 

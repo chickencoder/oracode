@@ -19,7 +19,7 @@ interface DashboardHeaderProps {
 
   // Project breadcrumb (optional)
   projects?: Project[];
-  currentProjectId?: Id<"projects">;
+  currentProjectSlug?: string; // From URL for immediate display
   onProjectSelect?: (projectId: Id<"projects">) => void;
   isProjectsLoading?: boolean;
 
@@ -35,7 +35,7 @@ export function DashboardHeader({
   onOrgSelect,
   isOrgsLoading,
   projects,
-  currentProjectId,
+  currentProjectSlug,
   onProjectSelect,
   isProjectsLoading,
   branchId,
@@ -50,7 +50,7 @@ export function DashboardHeader({
             onOrgSelect={onOrgSelect}
             isOrgsLoading={isOrgsLoading}
             projects={projects}
-            currentProjectId={currentProjectId}
+            currentProjectSlug={currentProjectSlug}
             onProjectSelect={onProjectSelect}
             isProjectsLoading={isProjectsLoading}
             branchId={branchId}

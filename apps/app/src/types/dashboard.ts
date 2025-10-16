@@ -8,6 +8,7 @@ export interface Org {
 export interface Project {
   _id: Id<"projects">;
   name: string;
+  slug?: string;
   description: string;
 }
 

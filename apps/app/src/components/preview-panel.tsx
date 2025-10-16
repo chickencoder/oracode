@@ -38,7 +38,7 @@ interface PreviewPanelProps {
   isReady: boolean;
   loadingStage?: "provisioning" | "cloning" | "installing" | "starting";
   onRetry: () => void;
-  branchId: Id<"branches">;
+  branchId: Id<"branches"> | undefined;
 }
 
 export function PreviewPanel({

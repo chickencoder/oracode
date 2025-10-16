@@ -1,6 +1,16 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
+/**
+ * Generate a URL-friendly slug from a name
+ */
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-") // Replace non-alphanumeric with hyphens
+    .replace(/^-+|-+$/g, ""); // Remove leading/trailing hyphens
+}
+
 // Create a new project
 export const createProject = mutation({
   args: {
@@ -23,11 +33,26 @@ export const createProject = mutation({
     }
     const orgId = identity.orgId;
 
+    // Generate slug from name
+    let slug = slugify(args.name);
+
+    // Check if slug already exists in this org
+    const existingProject = await ctx.db
+      .query("projects")
+      .withIndex("by_org_and_slug", (q) => q.eq("orgId", orgId).eq("slug", slug))
+      .first();
+
+    if (existingProject) {
+      // Append random suffix to make unique
+      slug = `${slug}-${Math.random().toString(36).substring(2, 8)}`;
+    }
+
     // Create the project
     const projectId = await ctx.db.insert("projects", {
       orgId,
       githubRepoId: args.githubRepoId,
       name: args.name,
+      slug,
       description: args.description ?? "",
       settings: args.settings,
       createdAt: Date.now(),
@@ -47,6 +72,7 @@ export const getProjectById = query({
       _id: v.id("projects"),
       githubRepoId: v.number(),
       name: v.string(),
+      slug: v.optional(v.string()),
       description: v.string(),
       settings: v.object({
         installCommand: v.string(),
@@ -82,6 +108,7 @@ export const getProjectById = query({
       _id: project._id,
       githubRepoId: project.githubRepoId,
       name: project.name,
+      slug: project.slug || slugify(project.name), // Fallback to generated slug
       description: project.description,
       settings: project.settings,
       createdAt: project.createdAt,
@@ -97,6 +124,7 @@ export const getProjects = query({
       _id: v.id("projects"),
       githubRepoId: v.number(),
       name: v.string(),
+      slug: v.optional(v.string()),
       description: v.string(),
       settings: v.object({
         installCommand: v.string(),
@@ -126,6 +154,7 @@ export const getProjects = query({
       _id: project._id,
       githubRepoId: project.githubRepoId,
       name: project.name,
+      slug: project.slug || slugify(project.name), // Fallback to generated slug
       description: project.description,
       settings: project.settings,
       createdAt: project.createdAt,
@@ -185,6 +214,7 @@ export const getProjectByIdPublic = query({
       _id: v.id("projects"),
       githubRepoId: v.number(),
       name: v.string(),
+      slug: v.optional(v.string()),
       description: v.string(),
       settings: v.object({
         installCommand: v.string(),
@@ -207,6 +237,7 @@ export const getProjectByIdPublic = query({
       _id: project._id,
       githubRepoId: project.githubRepoId,
       name: project.name,
+      slug: project.slug || slugify(project.name), // Fallback to generated slug
       description: project.description,
       settings: project.settings,
       createdAt: project.createdAt,
@@ -214,7 +245,7 @@ export const getProjectByIdPublic = query({
   },
 });
 
-// Get project by orgId and slug (using name as slug)
+// Get project by orgId and slug
 export const getProjectByOrgAndSlug = query({
   args: {
     orgId: v.string(),
@@ -225,6 +256,7 @@ export const getProjectByOrgAndSlug = query({
       _id: v.id("projects"),
       githubRepoId: v.number(),
       name: v.string(),
+      slug: v.optional(v.string()),
       description: v.string(),
       settings: v.object({
         installCommand: v.string(),
@@ -237,11 +269,10 @@ export const getProjectByOrgAndSlug = query({
     v.null(),
   ),
   handler: async (ctx, args) => {
-    // Query projects for this org matching the slug (using name)
+    // Query projects for this org matching the slug
     const project = await ctx.db
       .query("projects")
-      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
-      .filter((q) => q.eq(q.field("name"), args.slug))
+      .withIndex("by_org_and_slug", (q) => q.eq("orgId", args.orgId).eq("slug", args.slug))
       .first();
 
     if (!project) {
@@ -252,6 +283,7 @@ export const getProjectByOrgAndSlug = query({
       _id: project._id,
       githubRepoId: project.githubRepoId,
       name: project.name,
+      slug: project.slug || slugify(project.name), // Fallback to generated slug
       description: project.description,
       settings: project.settings,
       createdAt: project.createdAt,

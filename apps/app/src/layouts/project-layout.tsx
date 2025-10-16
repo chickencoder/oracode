@@ -22,23 +22,27 @@ const tabs: Tab[] = [
 
 export function ProjectLayout() {
   const navigate = useNavigate();
-  const { orgSlug, projectId } = useParams<{
+  const { orgSlug, projectSlug } = useParams<{
     orgSlug: string;
-    projectId: string;
+    projectSlug: string;
   }>();
   const { organization } = useOrganization();
   const { orgs, isOrgsLoaded, handleOrgSelect } = useOrgSelection();
 
   const project = useQuery(
-    api.projects.getProjectById,
-    projectId && organization?.id ? { projectId: projectId as Id<"projects"> } : "skip",
+    api.projects.getProjectByOrgAndSlug,
+    projectSlug && organization?.id
+      ? { orgId: organization.id, slug: projectSlug }
+      : "skip",
   );
 
   const { projects, isLoading: isProjectsLoading } = useProjects();
 
   const handleProjectSelect = (newProjectId: Id<"projects">) => {
-    if (newProjectId) {
-      navigate(`/${orgSlug}/project/${newProjectId}`);
+    // Find the project to get its slug
+    const selectedProject = projects?.find((p) => p._id === newProjectId);
+    if (selectedProject?.slug) {
+      navigate(`/${orgSlug}/${selectedProject.slug}`);
     }
   };
 
@@ -61,13 +65,13 @@ export function ProjectLayout() {
     <>
       <DashboardHeader
         tabs={tabs}
-        basePath={`/${orgSlug}/project/${projectId}`}
+        basePath={`/${orgSlug}/${projectSlug}`}
         orgs={orgs}
         currentOrgSlug={orgSlug}
         onOrgSelect={handleOrgSelectFromProject}
         isOrgsLoading={!isOrgsLoaded}
         projects={projects}
-        currentProjectId={projectId as Id<"projects">}
+        currentProjectSlug={projectSlug}
         onProjectSelect={handleProjectSelect}
         isProjectsLoading={isProjectsLoading}
       />

@@ -496,11 +496,7 @@ async function finalizeAssistantMessage(
 }
 
 async function processUserMessage(userMessage: UserMessage | null) {
-  if (
-    !userMessage ||
-    !userMessage.parts ||
-    !Array.isArray(userMessage.parts)
-  ) {
+  if (!userMessage || !userMessage.parts || !Array.isArray(userMessage.parts)) {
     logger.debug("Skipping invalid message", {
       hasMessage: !!userMessage,
       hasParts: !!userMessage?.parts,

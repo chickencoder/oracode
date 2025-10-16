@@ -1,6 +1,5 @@
 import { Link } from "react-router";
 import { Icon } from "./icon";
-import { Skeleton } from "./ui/skeleton";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -12,14 +11,14 @@ import {
 
 interface BranchBreadcrumbsProps {
   orgSlug: string;
-  projectId: string;
+  projectSlug: string;
   projectName?: string;
-  branchName?: string;
+  branchName: string;
 }
 
 export function BranchBreadcrumbs({
   orgSlug,
-  projectId,
+  projectSlug,
   projectName,
   branchName,
 }: BranchBreadcrumbsProps) {
@@ -29,7 +28,7 @@ export function BranchBreadcrumbs({
         {/* Logo - links to project branches page */}
         <BreadcrumbItem className="px-2">
           <BreadcrumbLink asChild>
-            <Link to={`/${orgSlug}/project/${projectId}`}>
+            <Link to={`/${orgSlug}/${projectSlug}`}>
               <Icon className="h-5 w-5 text-primary" />
               <span className="sr-only">Oracode</span>
             </Link>
@@ -40,15 +39,11 @@ export function BranchBreadcrumbs({
           /
         </BreadcrumbSeparator>
 
-        {/* Project name - links to project branches page */}
+        {/* Project name - show slug first, then replace with name when loaded */}
         <BreadcrumbItem className="px-2 text-foreground">
           <BreadcrumbLink asChild>
-            <Link to={`/${orgSlug}/project/${projectId}`}>
-              {projectName ? (
-                <span className="font-medium">{projectName}</span>
-              ) : (
-                <Skeleton className="h-5 w-24" />
-              )}
+            <Link to={`/${orgSlug}/${projectSlug}`}>
+              <span className="font-medium">{projectName || projectSlug}</span>
             </Link>
           </BreadcrumbLink>
         </BreadcrumbItem>
@@ -57,15 +52,9 @@ export function BranchBreadcrumbs({
           /
         </BreadcrumbSeparator>
 
-        {/* Branch name - current page */}
+        {/* Branch name - always from URL */}
         <BreadcrumbItem className="px-2 text-foreground">
-          {branchName ? (
-            <BreadcrumbPage className="font-medium">
-              {branchName}
-            </BreadcrumbPage>
-          ) : (
-            <Skeleton className="h-5 w-24" />
-          )}
+          <BreadcrumbPage className="font-medium">{branchName}</BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>
     </Breadcrumb>

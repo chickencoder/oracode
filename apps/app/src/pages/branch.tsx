@@ -11,13 +11,19 @@ import { BranchBreadcrumbs } from "@/components/branch-breadcrumbs";
 import { Button } from "@/components/ui/button";
 
 export function BranchPage() {
-  const { branchId } = useParams<{ branchId: string }>();
+  const { orgSlug, projectSlug, branchName } = useParams<{
+    orgSlug: string;
+    projectSlug: string;
+    branchName: string;
+  }>();
   const navigate = useNavigate();
   const { organization } = useOrganization();
 
   const branch = useQuery(
-    api.branches.getBranchById,
-    branchId && organization?.id ? { branchId: branchId as Id<"branches"> } : "skip",
+    api.branches.getBranchByOrgProjectAndBranchName,
+    orgSlug && projectSlug && branchName && organization?.id
+      ? { orgSlug, projectSlug, branchName }
+      : "skip",
   );
 
   const project = useQuery(
@@ -26,14 +32,24 @@ export function BranchPage() {
   );
 
   const { previewUrl, hasError, error, isCreating, loadingStage, isReady, retrySandbox } =
-    useSandbox(branchId ? (branchId as Id<"branches">) : null);
+    useSandbox(branch?._id || null);
 
-  useEffect(() => {
-    if (branch === null) {
-      // Branch not found or not authorized, redirect back
-      navigate(-1);
-    }
-  }, [branch, navigate]);
+  // Show not found state if branch query returned null
+  if (branch === null) {
+    return (
+      <div className="h-dvh flex items-center justify-center p-4">
+        <div className="text-center space-y-2">
+          <h1 className="text-2xl font-semibold">Branch not found</h1>
+          <p className="text-muted-foreground">
+            The branch "{branchName}" could not be found in this project.
+          </p>
+          <Button onClick={() => navigate(-1)} variant="outline" className="mt-4">
+            Go back
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   // Always render UI immediately - child components handle their own loading states
   return (
@@ -41,10 +57,10 @@ export function BranchPage() {
       {/* Toolbar */}
       <div className="flex items-center justify-between">
         <BranchBreadcrumbs
-          orgSlug={organization?.slug || ""}
-          projectId={branch?.projectId || ""}
+          orgSlug={orgSlug || ""}
+          projectSlug={projectSlug || ""}
           projectName={project?.name}
-          branchName={branch?.branchName}
+          branchName={branchName || ""}
         />
         <div className="flex items-center gap-2">
           <Button variant="secondary" size="sm">
@@ -58,10 +74,7 @@ export function BranchPage() {
 
       {/* Main content */}
       <div className="flex gap-2 flex-1 min-h-0">
-        <ChatPanel
-          branchId={branchId as Id<"branches">}
-          isSandboxReady={isReady}
-        />
+        <ChatPanel branchId={branch?._id} isSandboxReady={isReady} />
         <PreviewPanel
           domain={previewUrl}
           hasError={hasError}
@@ -70,7 +83,7 @@ export function BranchPage() {
           isReady={isReady}
           loadingStage={loadingStage}
           onRetry={retrySandbox}
-          branchId={branchId as Id<"branches">}
+          branchId={branch?._id}
         />
       </div>
     </div>

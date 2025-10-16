@@ -35,7 +35,7 @@ import { Shield } from "lucide-react";
 import { PermissionCard } from "@/components/permission-card";
 
 interface ChatPanelProps {
-  branchId: Id<"branches">;
+  branchId: Id<"branches"> | undefined;
   isSandboxReady: boolean;
 }
 
@@ -44,7 +44,7 @@ export function ChatPanel({ branchId, isSandboxReady }: ChatPanelProps) {
 
   const messages = useQuery(
     api.messages.getMessagesByBranchId,
-    organization && isLoaded ? { branchId } : "skip",
+    organization && isLoaded && branchId ? { branchId } : "skip",
   );
   const insertUserMessage = useMutation(api.messages.insertUserMessage);
 

@@ -8,14 +8,14 @@ const settingsNav = [
 ];
 
 export function ProjectSettingsLayout() {
-  const { orgSlug, projectId } = useParams<{
+  const { orgSlug, projectSlug } = useParams<{
     orgSlug: string;
-    projectId: string;
+    projectSlug: string;
   }>();
   const location = useLocation();
 
   // Determine the active page based on the current path
-  const basePath = `/${orgSlug}/project/${projectId}/settings`;
+  const basePath = `/${orgSlug}/${projectSlug}/settings`;
   const currentPath = location.pathname;
 
   const getActivePage = () => {

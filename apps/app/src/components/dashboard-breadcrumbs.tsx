@@ -24,7 +24,7 @@ interface DashboardBreadcrumbsProps {
 
   // Project level (optional)
   projects?: Project[];
-  currentProjectId?: Id<"projects">;
+  currentProjectSlug?: string; // From URL for immediate display
   onProjectSelect?: (projectId: Id<"projects">) => void;
   isProjectsLoading?: boolean;
 
@@ -38,7 +38,7 @@ export function DashboardBreadcrumbs({
   onOrgSelect,
   isOrgsLoading,
   projects,
-  currentProjectId,
+  currentProjectSlug,
   onProjectSelect,
   isProjectsLoading,
   branchId,
@@ -50,8 +50,8 @@ export function DashboardBreadcrumbs({
   );
 
   const currentProject = useMemo(
-    () => projects?.find((p) => p._id === currentProjectId),
-    [projects, currentProjectId]
+    () => projects?.find((p) => p.slug === currentProjectSlug),
+    [projects, currentProjectSlug]
   );
 
   return (
@@ -102,32 +102,30 @@ export function DashboardBreadcrumbs({
         </BreadcrumbItem>
 
         {/* Project level - dropdown or link depending on context */}
-        {currentProjectId && (
+        {currentProjectSlug && (
           <>
             <BreadcrumbSeparator className="text-xl text-muted-foreground/20">
               /
             </BreadcrumbSeparator>
             <BreadcrumbItem className="px-2 text-foreground">
-              {!currentProject ? (
-                <Skeleton className="h-7 w-32" />
-              ) : (
-                <div className="flex items-center gap-1">
-                  <BreadcrumbLink asChild>
-                    <Link
-                      className="font-medium"
-                      to={`/${currentOrgSlug}/project/${currentProjectId}`}
-                    >
-                      {currentProject.name}
-                    </Link>
-                  </BreadcrumbLink>
+              <div className="flex items-center gap-1">
+                <BreadcrumbLink asChild>
+                  <Link
+                    className="font-medium"
+                    to={`/${currentOrgSlug}/${currentProjectSlug}`}
+                  >
+                    {currentProject?.name || currentProjectSlug}
+                  </Link>
+                </BreadcrumbLink>
+                {currentProject && (
                   <ProjectDropdown
                     projects={projects ?? []}
-                    value={currentProjectId}
+                    value={currentProject._id}
                     onSelect={onProjectSelect}
                     isLoading={isProjectsLoading}
                   />
-                </div>
-              )}
+                )}
+              </div>
             </BreadcrumbItem>
           </>
         )}

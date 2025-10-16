@@ -36,13 +36,15 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 export function DevelopmentSettingsPage() {
-  const { projectId } = useParams<{ projectId: string }>();
+  const { projectSlug } = useParams<{ projectSlug: string }>();
   const { organization } = useOrganization();
 
   const updateProject = useMutation(api.projects.updateProject);
   const project = useQuery(
-    api.projects.getProjectById,
-    projectId && organization?.id ? { projectId: projectId as Id<"projects"> } : "skip",
+    api.projects.getProjectByOrgAndSlug,
+    projectSlug && organization?.id
+      ? { orgId: organization.id, slug: projectSlug }
+      : "skip",
   );
 
   const form = useForm<FormValues>({
@@ -68,11 +70,11 @@ export function DevelopmentSettingsPage() {
   }, [project, form]);
 
   const onSubmit = async (values: FormValues) => {
-    if (!projectId || !project) return;
+    if (!project) return;
 
     try {
       await updateProject({
-        projectId: projectId as Id<"projects">,
+        projectId: project._id,
         name: project.name,
         description: project.description,
         settings: {

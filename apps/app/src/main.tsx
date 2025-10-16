@@ -56,7 +56,7 @@ createRoot(document.getElementById("root")!).render(
                     <Route path="claude-code" element={<ClaudeCodeSettingsPage />} />
                   </Route>
                 </Route>
-                <Route path="/:orgSlug/project/:projectId" element={<ProjectLayout />}>
+                <Route path="/:orgSlug/:projectSlug" element={<ProjectLayout />}>
                   <Route index element={<ProjectBranchesPage />} />
                   <Route path="settings" element={<ProjectSettingsLayout />}>
                     <Route index element={<GeneralSettingsPage />} />
@@ -65,7 +65,7 @@ createRoot(document.getElementById("root")!).render(
                   </Route>
                 </Route>
                 <Route
-                  path="/:orgSlug/branches/:branchId"
+                  path="/:orgSlug/:projectSlug/:branchName"
                   element={<BranchPage />}
                 />
               </Routes>
