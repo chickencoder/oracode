@@ -58,18 +58,16 @@ export function ErrorTemplate({
         </style>
       </head>
       <body
-        class="bg-background text-foreground antialiased min-h-screen flex items-center justify-center p-4"
+        class="bg-background font-sans text-foreground antialiased min-h-screen flex items-center justify-center p-4"
       >
         <div
           class="w-full max-w-2xl bg-card border border-border rounded-lg shadow-lg p-8"
         >
           <div class="flex items-start gap-4">
             <div
-              class="flex-shrink-0 w-12 h-12 rounded-lg ${
-                statusCode >= 500
-                  ? "bg-destructive/10 text-destructive"
-                  : "bg-muted text-muted-foreground"
-              } flex items-center justify-center text-xl font-semibold"
+              class="flex-shrink-0 w-12 h-12 rounded-lg ${statusCode >= 500
+                ? "bg-destructive/10 text-destructive"
+                : "bg-muted text-muted-foreground"} flex items-center justify-center text-xl font-semibold"
             >
               ${statusCode}
             </div>
@@ -78,21 +76,23 @@ export function ErrorTemplate({
                 ${title}
               </h1>
               <p class="text-muted-foreground mb-4">${message}</p>
-              ${
-                details
-                  ? html`<div
-                      class="bg-muted rounded-lg p-4 text-sm font-mono text-muted-foreground overflow-x-auto"
+              ${details
+                ? html`<div
+                    class="bg-muted rounded-lg p-4 text-sm font-mono text-muted-foreground overflow-x-auto"
+                  >
+                    <pre class="whitespace-pre-wrap break-words">
+${details}</pre
                     >
-                      <pre class="whitespace-pre-wrap break-words">${details}</pre>
-                    </div>`
-                  : ""
-              }
+                  </div>`
+                : ""}
             </div>
           </div>
           <div class="mt-6 pt-6 border-t border-border">
             <p class="text-sm text-muted-foreground">
               Oracode Preview • Need help? Check your
-              <a href="#" class="text-foreground hover:underline">project settings</a>
+              <a href="#" class="text-foreground hover:underline"
+                >project settings</a
+              >
             </p>
           </div>
         </div>
@@ -175,15 +175,13 @@ export function LoadingTemplate({
           ></div>
           <h1 class="text-2xl font-semibold text-foreground mb-2">${title}</h1>
           <p class="text-muted-foreground mb-4">${message}</p>
-          ${
-            status
-              ? html`<div
-                  class="inline-block bg-muted rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground"
-                >
-                  Status: ${status}
-                </div>`
-              : ""
-          }
+          ${status
+            ? html`<div
+                class="inline-block bg-muted rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground"
+              >
+                Status: ${status}
+              </div>`
+            : ""}
         </div>
       </body>
     </html>`;
