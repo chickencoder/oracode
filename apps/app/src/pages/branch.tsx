@@ -10,6 +10,7 @@ import { useSandbox } from "@/hooks/use-sandbox";
 import { BranchBreadcrumbs } from "@/components/branch-breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { PublishPopover } from "@/components/publish-popover";
+import { toast } from "sonner";
 
 export function BranchPage() {
   const { orgSlug, projectSlug, branchName } = useParams<{
@@ -34,6 +35,21 @@ export function BranchPage() {
 
   const { previewUrl, hasError, error, isCreating, loadingStage, isReady, retrySandbox } =
     useSandbox(branch?._id || null);
+
+  const handleShare = async () => {
+    if (!previewUrl) {
+      toast.error("Preview URL not ready yet");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(previewUrl);
+      toast.success("Preview URL copied to clipboard!");
+    } catch (err) {
+      console.error("Failed to copy:", err);
+      toast.error("Failed to copy URL to clipboard");
+    }
+  };
 
   // Show not found state if branch query returned null
   if (branch === null) {
@@ -64,7 +80,7 @@ export function BranchPage() {
           branchName={branchName || ""}
         />
         <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm">
+          <Button variant="secondary" size="sm" onClick={handleShare} disabled={!previewUrl}>
             Share
           </Button>
           {branch?._id && <PublishPopover branchId={branch._id} />}

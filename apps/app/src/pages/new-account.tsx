@@ -132,9 +132,10 @@ export function NewAccountPage() {
         }
       }
 
-      // Step 2: Set organization as active
+      // Step 2: Set organization as active (use slug if available)
       if (setActive) {
-        await setActive({ organization: clerkOrg.id });
+        const orgIdentifier = clerkOrg.slug || clerkOrg.id;
+        await setActive({ organization: orgIdentifier });
       }
 
       // Step 3: Link GitHub installation to Clerk org (with explicit orgId)

@@ -163,7 +163,7 @@ export function PublishPopover({ branchId }: PublishPopoverProps) {
 
           {/* Progress Indicator */}
           {publishStatus && publishStatus.stage !== "complete" && (
-            <div className="space-y-2 pt-2 border-t">
+            <div className="space-y-2 pt-2">
               <h4 className="text-xs font-medium text-muted-foreground">
                 Publishing progress...
               </h4>
@@ -210,11 +210,8 @@ export function PublishPopover({ branchId }: PublishPopoverProps) {
               )}
 
               {!hasUncommittedChanges && !hasPullRequest && (
-                <div className="text-xs text-muted-foreground text-center py-2 border-t">
-                  <p>No changes to publish.</p>
-                  <p className="mt-1">
-                    Chat with the agent to make changes first.
-                  </p>
+                <div className="text-xs text-muted-foreground">
+                  <p>No changes to publish</p>
                 </div>
               )}
 

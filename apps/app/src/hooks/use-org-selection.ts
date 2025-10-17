@@ -31,16 +31,10 @@ export function useOrgSelection() {
 
   const handleOrgSelect = async (newOrgSlug: string) => {
     if (newOrgSlug) {
-      // Find the org by slug to get its ID
-      const selectedOrg = userMemberships.data?.find(
-        (m) => m.organization.slug === newOrgSlug,
-      );
+      // Set as active organization by slug before navigating
+      await setActive?.({ organization: newOrgSlug });
 
-      if (selectedOrg) {
-        // Set as active organization before navigating
-        await setActive?.({ organization: selectedOrg.organization.id });
-      }
-
+      // Navigate to the org's page - useOrgNavigation will sync the active org
       navigate(`/${newOrgSlug}`);
     }
   };
