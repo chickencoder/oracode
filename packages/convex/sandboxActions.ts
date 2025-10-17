@@ -471,34 +471,7 @@ export const startSandbox = action({
         }
       }
 
-      // Step 18: Get domain/preview URL using Daytona's preview link API
-      console.log("Getting preview link for port:", project.settings.port);
-      const previewLink = await sandbox.getPreviewLink(project.settings.port);
-      const daytonaDomain = previewLink.url;
-      const previewToken = previewLink.token;
-      console.log("Daytona sandbox domain:", daytonaDomain);
-      console.log("Preview token:", previewToken ? "present" : "none");
-
-      // Build our custom preview URL
-      const projectSlug = project.slug || slugify(project.name);
-      const customPreviewUrl = await buildPreviewUrl(
-        ctx,
-        branch.branchName,
-        projectSlug,
-        identity.orgId,
-      );
-      console.log("Custom preview URL:", customPreviewUrl);
-
-      // Store both Daytona domain (for internal proxy use) and custom preview URL
-      // The sandboxDomain field will store the Daytona domain for backend proxy
-      await ctx.runMutation(api.branches.updateBranchSandboxDomain, {
-        branchId: args.branchId,
-        domain: daytonaDomain,
-        previewToken,
-      });
-      console.log("Stored sandbox domain and token");
-
-      // Step 19: Inject sandbox worker
+      // Step 18: Inject sandbox worker (before preview URL to ensure it's ready)
       // Note: Claude Code CLI is pre-installed in the Docker image as a native binary
       console.log("Injecting sandbox worker...");
 
@@ -535,10 +508,37 @@ export const startSandbox = action({
         }
       }
 
-      // Step 20: Clear loading stage (sandbox is ready)
+      // Step 19: Get domain/preview URL using Daytona's preview link API
+      console.log("Getting preview link for port:", project.settings.port);
+      const previewLink = await sandbox.getPreviewLink(project.settings.port);
+      const daytonaDomain = previewLink.url;
+      const previewToken = previewLink.token;
+      console.log("Daytona sandbox domain:", daytonaDomain);
+      console.log("Preview token:", previewToken ? "present" : "none");
+
+      // Build our custom preview URL
+      const projectSlug = project.slug || slugify(project.name);
+      const customPreviewUrl = await buildPreviewUrl(
+        ctx,
+        branch.branchName,
+        projectSlug,
+        identity.orgId,
+      );
+      console.log("Custom preview URL:", customPreviewUrl);
+
+      // Step 20: Store domain/token AND clear loading stage together
+      // This ensures preview URL becomes available at the same time status becomes "running"
+      await ctx.runMutation(api.branches.updateBranchSandboxDomain, {
+        branchId: args.branchId,
+        domain: daytonaDomain,
+        previewToken,
+      });
+      console.log("Stored sandbox domain and token");
+
       await ctx.runMutation(api.branches.clearBranchSandboxLoadingStage, {
         branchId: args.branchId,
       });
+      console.log("Cleared loading stage - sandbox is ready");
 
       console.log("=== startSandbox action complete ===");
 

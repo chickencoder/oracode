@@ -76,6 +76,65 @@ app.all("*", async (c) => {
     }
 
     if (!branch.sandboxDomain || !branch.sandboxPreviewToken) {
+      // Check if sandbox is being provisioned
+      const isProvisioning = branch.sandboxStatus === "provisioning" ||
+                            branch.sandboxStatus === "starting" ||
+                            branch.sandboxStatus === "installing";
+
+      if (isProvisioning) {
+        // Return a loading page that will auto-retry
+        return c.html(
+          `<html>
+            <head>
+              <meta http-equiv="refresh" content="3">
+              <style>
+                body {
+                  font-family: system-ui, -apple-system, sans-serif;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  height: 100vh;
+                  margin: 0;
+                  background: #f5f5f5;
+                }
+                .container {
+                  text-align: center;
+                  padding: 2rem;
+                  background: white;
+                  border-radius: 8px;
+                  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                }
+                .spinner {
+                  border: 3px solid #f3f3f3;
+                  border-top: 3px solid #3498db;
+                  border-radius: 50%;
+                  width: 40px;
+                  height: 40px;
+                  animation: spin 1s linear infinite;
+                  margin: 0 auto 1rem;
+                }
+                @keyframes spin {
+                  0% { transform: rotate(0deg); }
+                  100% { transform: rotate(360deg); }
+                }
+                h1 { margin: 0 0 0.5rem; font-size: 1.5rem; }
+                p { color: #666; margin: 0; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="spinner"></div>
+                <h1>Preparing Preview</h1>
+                <p>Your development environment is starting up...</p>
+                <p style="margin-top: 1rem; font-size: 0.9rem;">Status: ${branch.sandboxStatus}</p>
+              </div>
+            </body>
+          </html>`,
+          503,
+        );
+      }
+
+      // Not provisioning - actually unavailable
       return c.html(
         `<html><body><h1>Preview Not Available</h1><p>This branch doesn't have a preview URL yet.</p></body></html>`,
         503,

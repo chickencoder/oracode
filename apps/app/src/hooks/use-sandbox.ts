@@ -82,13 +82,16 @@ export function useSandbox(branchId: Id<"branches"> | null | undefined) {
   const isStopped =
     branch?.sandboxStatus === "stopped" || branch?.sandboxStatus === "archived";
   const isReady =
-    branch?.sandboxStatus === "running" &&
-    !!branch?.sandboxDomain;
+    branch?.sandboxStatus === "running" && !!branch?.sandboxDomain;
 
-  // Build preview URL from slugs
+  // Build preview URL - only when sandbox domain and token are available
   // Format: {projectSlug}-git-{branch}.{orgSlug}.oracode.local
+  const hasPreviewReady =
+    branch?.sandboxDomain && branch?.sandboxPreviewToken;
+  const hasRequiredData = branch && project?.slug && org?.slug;
+
   const previewUrl =
-    branch && project && org && project.slug && org.slug
+    hasPreviewReady && hasRequiredData
       ? `https://${project.slug}-git-${slugify(branch.branchName)}.${org.slug}.oracode.local`
       : "";
 
