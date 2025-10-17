@@ -297,7 +297,22 @@ export const startSandbox = action({
 
       console.log("Repository cloned successfully");
 
-      // Step 13b: Checkout the git branch (create if doesn't exist)
+      // Step 13b: Configure git user (use Clerk user info)
+      console.log("Configuring git user from Clerk identity");
+      const userName = identity.name || "Oracode User";
+      const userEmail = identity.email || "user@oracode.dev";
+
+      await sandbox.process.executeCommand(
+        `git config user.name "${userName}"`,
+        `${workDir}/project`,
+      );
+      await sandbox.process.executeCommand(
+        `git config user.email "${userEmail}"`,
+        `${workDir}/project`,
+      );
+      console.log(`Git configured with name: ${userName}, email: ${userEmail}`);
+
+      // Step 13c: Checkout the git branch (create if doesn't exist)
       console.log("Checking out git branch:", branch.branchName);
       const checkoutResult = await sandbox.process.executeCommand(
         `git checkout -B ${branch.branchName}`,

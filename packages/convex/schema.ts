@@ -84,6 +84,23 @@ export default defineSchema({
         commandId: v.string(),
       }),
     ),
+    // Pull request tracking
+    pullRequestUrl: v.optional(v.string()), // GitHub PR URL
+    // Publish status tracking
+    publishStatus: v.optional(
+      v.object({
+        stage: v.union(
+          v.literal("staging"),
+          v.literal("committing"),
+          v.literal("pushing"),
+          v.literal("creating-pr"),
+          v.literal("complete"),
+        ),
+        message: v.optional(v.string()),
+        error: v.optional(v.string()),
+        pullRequestUrl: v.optional(v.string()),
+      }),
+    ),
   })
     .index("by_project", ["projectId"])
     .index("by_project_and_branch_name", ["projectId", "branchName"])
@@ -183,4 +200,20 @@ export default defineSchema({
   })
     .index("by_project", ["projectId"])
     .index("by_project_and_key", ["projectId", "key"]), // Ensure unique keys per project
+
+  // Git status snapshots (1:1 with branches)
+  snapshots: defineTable({
+    branchId: v.id("branches"),
+
+    // Git status information
+    currentBranch: v.string(),
+    headCommit: v.string(), // SHA
+    hasUncommittedChanges: v.boolean(),
+
+    // File change arrays
+    staged: v.array(v.string()),
+    modified: v.array(v.string()),
+    untracked: v.array(v.string()),
+    deleted: v.array(v.string()),
+  }).index("by_branch", ["branchId"]), // Unique - enforces 1 row per branch
 });

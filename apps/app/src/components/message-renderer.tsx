@@ -151,7 +151,11 @@ const renderToolCall = (
         <span className="inline-flex items-center gap-1.5">
           {icon}
           <span>{label}</span>
-          {param && <ToolParam>{param}</ToolParam>}
+          {param && (
+            <ToolParam className="whitespace-nowrap text-ellipsis">
+              {param}
+            </ToolParam>
+          )}
         </span>
       </div>
     );
@@ -163,7 +167,11 @@ const renderToolCall = (
       <LoadingText>
         <span className="inline-flex items-center gap-1.5">
           <span>{label}</span>
-          {param && <ToolParam>{param}</ToolParam>}
+          {param && (
+            <ToolParam className="whitespace-nowrap text-ellipsis">
+              {param}
+            </ToolParam>
+          )}
         </span>
       </LoadingText>
     </div>

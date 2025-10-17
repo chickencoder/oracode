@@ -50,6 +50,21 @@ const branchReturnType = v.object({
       commandId: v.string(),
     }),
   ),
+  pullRequestUrl: v.optional(v.string()),
+  publishStatus: v.optional(
+    v.object({
+      stage: v.union(
+        v.literal("staging"),
+        v.literal("committing"),
+        v.literal("pushing"),
+        v.literal("creating-pr"),
+        v.literal("complete"),
+      ),
+      message: v.optional(v.string()),
+      error: v.optional(v.string()),
+      pullRequestUrl: v.optional(v.string()),
+    }),
+  ),
 });
 
 export const createBranch = mutation({
@@ -694,5 +709,140 @@ export const deleteBranch = mutation({
     await ctx.db.delete(args.branchId);
 
     return null;
+  },
+});
+
+// Mutation to update pull request URL
+export const updatePullRequest = mutation({
+  args: {
+    branchId: v.id("branches"),
+    pullRequestUrl: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    // Get authenticated user
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.orgId || typeof identity.orgId !== "string") {
+      throw new Error("User must be authenticated with an organization");
+    }
+    const orgId = identity.orgId;
+
+    // Verify branch belongs to user's org
+    const branch = await ctx.db.get(args.branchId);
+    if (!branch) {
+      throw new Error("Branch not found");
+    }
+    const project = await ctx.db.get(branch.projectId);
+    if (!project || project.orgId !== orgId) {
+      throw new Error("Not authorized to update this branch");
+    }
+
+    await ctx.db.patch(args.branchId, {
+      pullRequestUrl: args.pullRequestUrl,
+    });
+
+    return null;
+  },
+});
+
+// Mutation to update publish status
+export const updatePublishStatus = mutation({
+  args: {
+    branchId: v.id("branches"),
+    status: v.union(
+      v.object({
+        stage: v.union(
+          v.literal("staging"),
+          v.literal("committing"),
+          v.literal("pushing"),
+          v.literal("creating-pr"),
+          v.literal("complete"),
+        ),
+        message: v.optional(v.string()),
+        error: v.optional(v.string()),
+        pullRequestUrl: v.optional(v.string()),
+      }),
+      v.null(),
+    ),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    // Get authenticated user
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.orgId || typeof identity.orgId !== "string") {
+      throw new Error("User must be authenticated with an organization");
+    }
+    const orgId = identity.orgId;
+
+    // Verify branch belongs to user's org
+    const branch = await ctx.db.get(args.branchId);
+    if (!branch) {
+      throw new Error("Branch not found");
+    }
+    const project = await ctx.db.get(branch.projectId);
+    if (!project || project.orgId !== orgId) {
+      throw new Error("Not authorized to update this branch");
+    }
+
+    await ctx.db.patch(args.branchId, {
+      publishStatus: args.status === null ? undefined : args.status,
+    });
+
+    return null;
+  },
+});
+
+// Query to get branch with project data
+export const getBranchWithProject = query({
+  args: {
+    branchId: v.id("branches"),
+  },
+  returns: v.union(
+    v.object({
+      branch: branchReturnType,
+      project: v.object({
+        _id: v.id("projects"),
+        githubRepoId: v.number(),
+        name: v.string(),
+        slug: v.optional(v.string()),
+        settings: v.object({
+          installCommand: v.string(),
+          devCommand: v.string(),
+          port: v.number(),
+          projectRoot: v.optional(v.string()),
+        }),
+      }),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    // Get authenticated user
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.orgId || typeof identity.orgId !== "string") {
+      throw new Error("User must be authenticated with an organization");
+    }
+    const orgId = identity.orgId;
+
+    const branch = await ctx.db.get(args.branchId);
+    if (!branch) {
+      return null;
+    }
+
+    // Verify branch belongs to user's org
+    const project = await ctx.db.get(branch.projectId);
+    if (!project || project.orgId !== orgId) {
+      throw new Error("Not authorized to access this branch");
+    }
+
+    return {
+      branch,
+      project: {
+        _id: project._id,
+        githubRepoId: project.githubRepoId,
+        name: project.name,
+        slug: project.slug,
+        settings: project.settings,
+      },
+    };
   },
 });

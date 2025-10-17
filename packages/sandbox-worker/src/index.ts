@@ -5,7 +5,7 @@ import { config } from "dotenv";
 import {
   query,
   type Options,
-  type CanUseToolResponse,
+  type CanUseTool,
 } from "@anthropic-ai/claude-agent-sdk";
 import type {
   TextBlock,
@@ -14,6 +14,7 @@ import type {
 import { v4 as uuidv4 } from "uuid";
 
 import { logger } from "./utils/logger";
+import { captureGitStatus } from "./utils/gitStatus";
 import type { MessagePart, UserMessage, StreamingState } from "./types";
 
 config();
@@ -57,6 +58,32 @@ logger.info("Starting sandbox worker", {
   branchId: process.env.BRANCH_ID,
   hasClerkToken: !!process.env.CLERK_TOKEN,
 });
+
+function getCustomPrompt({
+  port,
+  devCommand,
+  installCommand,
+  projectRoot,
+}: {
+  port: string;
+  devCommand: string;
+  installCommand: string;
+  projectRoot?: string;
+}) {
+  const projectRootLine = projectRoot
+    ? `\n\nThe user has provided the project root as ${projectRoot}. This is where the install, dev commands are run and you should focus your work in this directory.`
+    : "";
+
+  return `You are in a sandbox on a platform called oracode which is a web-based environment for technical and non-technical people to be able to create code changes with AI and then quickly open pull requests on github.
+
+You are in a chat window on the left and you understand that the user can already see a live preview of the code on the right.
+
+The user may be non-technical so respond at an appropriate level of detail based on their requests.
+
+The initial dependencies are already installed and the dev server is already running on port ${port}. The dev command is ${devCommand} and the install command is ${installCommand}.${projectRootLine}
+
+We have run these commands on behalf of the user. They do not have access to the command line.`;
+}
 
 const client = new ConvexClient(process.env.CONVEX_URL!);
 
@@ -205,6 +232,29 @@ async function processStreamingSession() {
     const orgId = currentBranchForPermissions?._id || "";
     const userId = "system"; // TODO: Get actual user ID from context
 
+    // Fetch project settings for custom prompt
+    let customPrompt = "";
+    try {
+      if (currentBranchForPermissions?.projectId) {
+        const project = await client.query(api.projects.getProjectByIdPublic, {
+          projectId: currentBranchForPermissions.projectId,
+        });
+
+        if (project) {
+          customPrompt = getCustomPrompt({
+            port: project.settings.port.toString(),
+            devCommand: project.settings.devCommand,
+            installCommand: project.settings.installCommand,
+            projectRoot: project.settings.projectRoot,
+          });
+        }
+      }
+    } catch (error) {
+      logger.warn("Could not fetch project settings for custom prompt", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
     // Fetch initial permission mode from branch
     let initialPermissionMode: "default" | "acceptEdits" | "bypassPermissions" =
       "bypassPermissions";
@@ -232,7 +282,11 @@ async function processStreamingSession() {
       permissionMode: initialPermissionMode,
       maxTurns: 50,
       model: "claude-sonnet-4-5-20250929",
-      systemPrompt: { type: "preset", preset: "claude_code" },
+      systemPrompt: {
+        type: "preset",
+        preset: "claude_code",
+        append: customPrompt,
+      },
       settingSources: [],
       includePartialMessages: true,
       canUseTool: async (toolName, input) => {
@@ -493,6 +547,42 @@ async function finalizeAssistantMessage(
     partCount: parts.length,
     inReplyToId,
   });
+
+  // Check if message contains tool uses - if so, capture git status
+  const hasToolUses = parts.some((part) => part.type === "tool_use");
+  if (hasToolUses) {
+    await captureAndUpdateGitSnapshot();
+  }
+}
+
+/**
+ * Capture current git status and update snapshot in Convex
+ */
+async function captureAndUpdateGitSnapshot() {
+  try {
+    const gitStatus = await captureGitStatus();
+
+    if (gitStatus) {
+      await client.mutation(api.snapshots.updateSnapshot, {
+        branchId: branchId,
+        currentBranch: gitStatus.currentBranch,
+        headCommit: gitStatus.headCommit,
+        hasUncommittedChanges: gitStatus.hasUncommittedChanges,
+        staged: gitStatus.staged,
+        modified: gitStatus.modified,
+        untracked: gitStatus.untracked,
+        deleted: gitStatus.deleted,
+      });
+
+      logger.info("Updated git snapshot", {
+        branch: gitStatus.currentBranch,
+        commit: gitStatus.headCommit.substring(0, 7),
+        hasChanges: gitStatus.hasUncommittedChanges,
+      });
+    }
+  } catch (error) {
+    logger.error("Failed to update git snapshot", error as Error);
+  }
 }
 
 async function processUserMessage(userMessage: UserMessage | null) {
