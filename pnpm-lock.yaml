@@ -198,6 +198,9 @@ importers:
 
   apps/preview:
     dependencies:
+      '@repo/convex':
+        specifier: workspace:*
+        version: link:../../packages/convex
       convex:
         specifier: ^1.18.4
         version: 1.27.5(@clerk/clerk-react@5.51.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)

@@ -110,9 +110,9 @@ export function PublishPopover({ branchId }: PublishPopoverProps) {
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80">
-        <div className="space-y-4">
+        <div className="space-y-3">
           {/* Header */}
-          <h3 className="font-medium text-lg tracking-tight">
+          <h3 className="font-medium text-base tracking-tight">
             Publish changes
           </h3>
 

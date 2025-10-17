@@ -9,6 +9,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@repo/convex": "workspace:*",
     "convex": "^1.18.4",
     "hono": "^4.7.9"
   },

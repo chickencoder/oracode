@@ -1,14 +1,17 @@
 import { Hono } from "hono";
 import { ConvexHttpClient } from "convex/browser";
+import { api } from "@repo/convex/_generated/api";
+import { ErrorTemplate, LoadingTemplate } from "./template";
 
 type Bindings = {
   CONVEX_URL: string;
+  PREVIEW_SECRET: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
 
 function parseHostname(
-  hostname: string
+  hostname: string,
 ): { branchName: string; projectSlug: string; orgSlug: string } | null {
   const parts = hostname.split(".");
 
@@ -51,92 +54,82 @@ app.all("*", async (c) => {
 
   if (!parsed) {
     return c.html(
-      `<html><body><h1>Invalid URL Format</h1><p>Expected format: {projectSlug}-git-{branch}.{orgSlug}.oracode.local</p></body></html>`,
+      ErrorTemplate({
+        title: "Invalid URL Format",
+        message:
+          "Expected format: {projectSlug}-git-{branch}.{orgSlug}.oracode.local",
+        statusCode: 400,
+        details: `Received: ${reqUrl.hostname}`,
+      }),
       400,
     );
   }
 
+  // Create Convex client with pre-shared secret for authentication
   const convex = new ConvexHttpClient(c.env.CONVEX_URL);
 
-  try {
-    const branch = await convex.query(
-      "branches:getBranchByOrgSlugProjectSlugAndBranchName" as any,
-      {
-        orgSlug: parsed.orgSlug,
-        projectSlug: parsed.projectSlug,
-        branchName: parsed.branchName,
-      }
+  // Check if PREVIEW_SECRET is configured
+  if (!c.env.PREVIEW_SECRET) {
+    return c.html(
+      ErrorTemplate({
+        title: "Configuration Error",
+        message:
+          "PREVIEW_SECRET is not configured. Please set it in wrangler environment.",
+        statusCode: 500,
+      }),
+      500,
     );
+  }
+
+  try {
+    // Call public query with pre-shared secret for authentication
+    const branch = await convex.query(api.branches.getPreviewBranchByNames, {
+      orgSlug: parsed.orgSlug,
+      projectSlug: parsed.projectSlug,
+      branchName: parsed.branchName,
+      previewSecret: c.env.PREVIEW_SECRET,
+    });
 
     if (!branch) {
       return c.html(
-        `<html><body><h1>Branch Not Found</h1><p>No branch found: ${parsed.orgSlug}/${parsed.projectSlug}/${parsed.branchName}</p></body></html>`,
+        ErrorTemplate({
+          title: "Branch Not Found",
+          message: "The requested branch does not exist or is not accessible.",
+          statusCode: 404,
+          details: `${parsed.orgSlug}/${parsed.projectSlug}/${parsed.branchName}`,
+        }),
         404,
       );
     }
 
     if (!branch.sandboxDomain || !branch.sandboxPreviewToken) {
       // Check if sandbox is being provisioned
-      const isProvisioning = branch.sandboxStatus === "provisioning" ||
-                            branch.sandboxStatus === "starting" ||
-                            branch.sandboxStatus === "installing";
+      const isProvisioning =
+        branch.sandboxStatus === "provisioning" ||
+        branch.sandboxStatus === "starting" ||
+        branch.sandboxLoadingStage === "installing";
 
       if (isProvisioning) {
         // Return a loading page that will auto-retry
         return c.html(
-          `<html>
-            <head>
-              <meta http-equiv="refresh" content="3">
-              <style>
-                body {
-                  font-family: system-ui, -apple-system, sans-serif;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  height: 100vh;
-                  margin: 0;
-                  background: #f5f5f5;
-                }
-                .container {
-                  text-align: center;
-                  padding: 2rem;
-                  background: white;
-                  border-radius: 8px;
-                  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                }
-                .spinner {
-                  border: 3px solid #f3f3f3;
-                  border-top: 3px solid #3498db;
-                  border-radius: 50%;
-                  width: 40px;
-                  height: 40px;
-                  animation: spin 1s linear infinite;
-                  margin: 0 auto 1rem;
-                }
-                @keyframes spin {
-                  0% { transform: rotate(0deg); }
-                  100% { transform: rotate(360deg); }
-                }
-                h1 { margin: 0 0 0.5rem; font-size: 1.5rem; }
-                p { color: #666; margin: 0; }
-              </style>
-            </head>
-            <body>
-              <div class="container">
-                <div class="spinner"></div>
-                <h1>Preparing Preview</h1>
-                <p>Your development environment is starting up...</p>
-                <p style="margin-top: 1rem; font-size: 0.9rem;">Status: ${branch.sandboxStatus}</p>
-              </div>
-            </body>
-          </html>`,
+          LoadingTemplate({
+            title: "Preparing Preview",
+            message: "Your development environment is starting up...",
+            status: branch.sandboxStatus,
+          }),
           503,
         );
       }
 
       // Not provisioning - actually unavailable
       return c.html(
-        `<html><body><h1>Preview Not Available</h1><p>This branch doesn't have a preview URL yet.</p></body></html>`,
+        ErrorTemplate({
+          title: "Preview Not Available",
+          message: "This branch doesn't have a preview URL yet.",
+          statusCode: 503,
+          details:
+            "The development environment needs to be started. Please check your project settings.",
+        }),
         503,
       );
     }
@@ -218,7 +211,13 @@ app.all("*", async (c) => {
   } catch (error) {
     console.error("Proxy error:", error);
     return c.html(
-      `<html><body><h1>Proxy Error</h1><p>${error instanceof Error ? error.message : "Unknown error"}</p></body></html>`,
+      ErrorTemplate({
+        title: "Proxy Error",
+        message:
+          "An error occurred while connecting to your development environment.",
+        statusCode: 500,
+        details: error instanceof Error ? error.message : "Unknown error",
+      }),
       500,
     );
   }

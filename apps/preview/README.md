@@ -1,6 +1,6 @@
-# Oracode Preview Proxy
+# Oracode Preview Service
 
-Cloudflare Workers proxy service for Daytona sandboxes with automatic wake functionality.
+Cloudflare Workers proxy service for Daytona sandboxes with Clerk authentication.
 
 ## URL Pattern
 
@@ -164,10 +164,45 @@ npx wrangler secret put CONVEX_URL
 npx wrangler secret put DAYTONA_API_KEY
 ```
 
+## Authentication
+
+The preview service uses a pre-shared secret for authentication with Convex:
+
+1. User accesses preview URL (e.g., `branch-name-project-slug-org-slug.preview.oracode.dev`)
+2. Worker parses org/project/branch from URL
+3. Worker calls Convex public query with pre-shared secret
+4. Convex verifies secret and returns branch data
+5. Worker proxies request to Daytona sandbox with preview token
+
+### Setting Secrets for Production
+
+```bash
+# Set preview secret (required - must match Convex PREVIEW_SECRET)
+wrangler secret put PREVIEW_SECRET --env production
+
+# Set Convex URL (required)
+wrangler secret put CONVEX_URL --env production
+```
+
+### Setting Secret in Convex
+
+The same secret must be configured in Convex:
+
+```bash
+cd packages/convex
+npx convex env set PREVIEW_SECRET <your-secret-here>
+```
+
+Generate a secure secret:
+```bash
+openssl rand -hex 32
+```
+
 ## Features
 
+- ✅ Pre-shared secret authentication with Convex
 - ✅ Automatic sandbox wake on first request
 - ✅ Handles Daytona authentication headers
 - ✅ Loading states for sandbox creation/wake
 - ✅ Error handling and user-friendly messages
-- ⏳ Authentication (coming later)
+- ✅ Secure authentication between services
