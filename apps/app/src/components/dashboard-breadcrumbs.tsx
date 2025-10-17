@@ -46,12 +46,12 @@ export function DashboardBreadcrumbs({
   // Memoize the current org lookup to avoid repeated finds
   const currentOrg = useMemo(
     () => orgs.find((org) => org.slug === currentOrgSlug),
-    [orgs, currentOrgSlug]
+    [orgs, currentOrgSlug],
   );
 
   const currentProject = useMemo(
     () => projects?.find((p) => p.slug === currentProjectSlug),
-    [projects, currentProjectSlug]
+    [projects, currentProjectSlug],
   );
 
   return (
@@ -60,7 +60,7 @@ export function DashboardBreadcrumbs({
         {/* Logo - always links to home */}
         <BreadcrumbItem className="px-2">
           <BreadcrumbLink asChild>
-            <Link to="/">
+            <Link to={`/${currentOrgSlug}`}>
               <Icon className="h-5 w-5 text-primary" />
               <span className="sr-only">Oracode</span>
             </Link>
