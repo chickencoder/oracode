@@ -1,6 +1,13 @@
 "use node";
 
 import { createAppAuth } from "@octokit/auth-app";
+import { z } from "zod";
+
+// Zod schema for GitHub repository API response
+const githubRepoSchema = z.object({
+  clone_url: z.string(),
+  default_branch: z.string(),
+});
 
 /**
  * Format GitHub App private key from environment variable
@@ -96,9 +103,11 @@ export async function getRepositoryCloneUrl(
     );
   }
 
-  const repo = await response.json();
+  const json = await response.json();
+  const repo = githubRepoSchema.parse(json);
+
   return {
-    cloneUrl: repo.clone_url as string,
-    defaultBranch: repo.default_branch as string,
+    cloneUrl: repo.clone_url,
+    defaultBranch: repo.default_branch,
   };
 }

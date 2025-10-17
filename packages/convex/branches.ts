@@ -584,32 +584,24 @@ export const updateBranchSandboxError = mutation({
   },
 });
 
-// Public query to get branch by ID without auth (for proxy service)
-// Note: This is intentionally public to allow the proxy service to access it
-export const getBranchByIdPublic = query({
-  args: {
-    branchId: v.id("branches"),
-  },
-  returns: v.union(branchReturnType, v.null()),
-  handler: async (ctx, args) => {
-    // No auth check - this is intentionally public for the proxy service
-    const branch = await ctx.db.get(args.branchId);
-    return branch || null;
-  },
-});
-
-// Public query to get branch by org slug, project slug, and branch name (for preview proxy)
-export const getBranchByOrgSlugProjectSlugAndBranchName = query({
+// Public query for preview service - authenticated with pre-shared secret
+export const getPreviewBranchByNames = query({
   args: {
     orgSlug: v.string(),
     projectSlug: v.string(),
     branchName: v.string(),
+    previewSecret: v.string(),
   },
   returns: v.union(branchReturnType, v.null()),
   handler: async (ctx, args) => {
-    // No auth check - this is intentionally public for the proxy service
+    // Verify pre-shared secret
+    const expectedSecret = process.env.PREVIEW_SECRET;
+    if (!expectedSecret || args.previewSecret !== expectedSecret) {
+      console.error("Invalid preview secret provided");
+      return null;
+    }
 
-    // First, find the organization by slug
+    // Find the organization by slug
     const org = await ctx.db
       .query("orgs")
       .withIndex("by_slug", (q) => q.eq("slug", args.orgSlug))
@@ -637,25 +629,6 @@ export const getBranchByOrgSlugProjectSlugAndBranchName = query({
       .withIndex("by_project_and_branch_name", (q) =>
         q.eq("projectId", project._id).eq("branchName", args.branchName),
       )
-      .first();
-
-    return branch || null;
-  },
-});
-
-// Get branch by project and branch name
-export const getBranchByProjectAndName = query({
-  args: {
-    projectId: v.id("projects"),
-    branchName: v.string(),
-  },
-  returns: v.union(branchReturnType, v.null()),
-  handler: async (ctx, args) => {
-    // Find branch by project and name
-    const branch = await ctx.db
-      .query("branches")
-      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
-      .filter((q) => q.eq(q.field("branchName"), args.branchName))
       .first();
 
     return branch || null;
