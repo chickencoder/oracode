@@ -63,6 +63,7 @@ export const createBranch = mutation({
       projectId: args.projectId,
       branchName: args.branchName,
       createdAt: Date.now(),
+      permissionMode: "bypassPermissions", // Default to bypass permissions
     });
 
     return branchId;
@@ -116,7 +117,7 @@ export const getBranchByOrgProjectAndBranchName = query({
     const project = await ctx.db
       .query("projects")
       .withIndex("by_org_and_slug", (q) =>
-        q.eq("orgId", org.orgId).eq("slug", args.projectSlug)
+        q.eq("orgId", org.orgId).eq("slug", args.projectSlug),
       )
       .first();
 
@@ -128,7 +129,7 @@ export const getBranchByOrgProjectAndBranchName = query({
     const branch = await ctx.db
       .query("branches")
       .withIndex("by_project_and_branch_name", (q) =>
-        q.eq("projectId", project._id).eq("branchName", args.branchName)
+        q.eq("projectId", project._id).eq("branchName", args.branchName),
       )
       .first();
 
@@ -273,7 +274,6 @@ export const updateBranchSandbox = mutation({
     return null;
   },
 });
-
 
 // Mutation to update sandbox domain
 export const updateBranchSandboxDomain = mutation({
@@ -608,7 +608,7 @@ export const getBranchByOrgSlugProjectSlugAndBranchName = query({
     const project = await ctx.db
       .query("projects")
       .withIndex("by_org_and_slug", (q) =>
-        q.eq("orgId", org.orgId).eq("slug", args.projectSlug)
+        q.eq("orgId", org.orgId).eq("slug", args.projectSlug),
       )
       .first();
 
@@ -620,7 +620,7 @@ export const getBranchByOrgSlugProjectSlugAndBranchName = query({
     const branch = await ctx.db
       .query("branches")
       .withIndex("by_project_and_branch_name", (q) =>
-        q.eq("projectId", project._id).eq("branchName", args.branchName)
+        q.eq("projectId", project._id).eq("branchName", args.branchName),
       )
       .first();
 

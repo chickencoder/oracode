@@ -100,13 +100,13 @@ const renderToolCall = (
       break;
     case "Bash":
       if (typeof part.input?.command === "string") {
-        label = isComplete ? "Ran" : "Running";
+        label = isComplete ? "Executed" : "Executing";
         param =
           part.input.command.length > 40
             ? `${part.input.command.slice(0, 40)}...`
             : part.input.command;
       } else {
-        label = isComplete ? "Ran command" : "Running command";
+        label = isComplete ? "Executed command" : "Executing command";
       }
       break;
     case "Grep":

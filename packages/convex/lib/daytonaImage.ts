@@ -16,8 +16,8 @@ import { Image } from "@daytonaio/sdk";
 export function buildOracodeImage() {
   return Image.base("node:22-slim")
     .runCommands(
-      // Install essential utilities and ripgrep (required by Claude Code)
-      "apt-get update && apt-get install -y curl coreutils procps ripgrep strace && rm -rf /var/lib/apt/lists/*",
+      // Install essential utilities, git, and ripgrep (required by Claude Code)
+      "apt-get update && apt-get install -y curl coreutils procps git ripgrep strace && rm -rf /var/lib/apt/lists/*",
       "npm install -g pnpm@latest",
       // Install Claude Agent SDK, Claude Code, and Anthropic SDK globally via npm (latest versions)
       "npm install -g @anthropic-ai/claude-agent-sdk @anthropic-ai/claude-code @anthropic-ai/sdk",

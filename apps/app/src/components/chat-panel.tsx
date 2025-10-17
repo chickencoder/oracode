@@ -87,7 +87,10 @@ export function ChatPanel({ branchId, isSandboxReady }: ChatPanelProps) {
       : "ready";
 
   const handleSubmit = async (message: PromptInputMessage) => {
-    if (!isSandboxReady) return;
+    if (!isSandboxReady) {
+      toast.error("Sandbox isn't ready yet. Please wait...");
+      return;
+    }
 
     const messageText = message.text?.trim();
     if (!messageText) return;
@@ -166,7 +169,7 @@ export function ChatPanel({ branchId, isSandboxReady }: ChatPanelProps) {
             placeholder={
               isSandboxReady ? "Ask anything..." : "Waiting for sandbox..."
             }
-            disabled={!isSandboxReady || isGenerating || isAssistantStreaming}
+            disabled={isGenerating || isAssistantStreaming}
           />
         </PromptInputBody>
         <PromptInputToolbar>
@@ -174,7 +177,7 @@ export function ChatPanel({ branchId, isSandboxReady }: ChatPanelProps) {
             status={status}
             variant="default"
             className="ml-auto"
-            disabled={!isSandboxReady || isGenerating || isAssistantStreaming}
+            disabled={isGenerating || isAssistantStreaming}
           />
         </PromptInputToolbar>
       </PromptInput>
