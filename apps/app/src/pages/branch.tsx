@@ -9,6 +9,7 @@ import { PreviewPanel } from "@/components/preview-panel";
 import { useSandbox } from "@/hooks/use-sandbox";
 import { BranchBreadcrumbs } from "@/components/branch-breadcrumbs";
 import { Button } from "@/components/ui/button";
+import { PublishPopover } from "@/components/publish-popover";
 
 export function BranchPage() {
   const { orgSlug, projectSlug, branchName } = useParams<{
@@ -66,9 +67,7 @@ export function BranchPage() {
           <Button variant="secondary" size="sm">
             Share
           </Button>
-          <Button size="sm">
-            Publish
-          </Button>
+          {branch?._id && <PublishPopover branchId={branch._id} />}
         </div>
       </div>
 

@@ -95,11 +95,11 @@ async function handleDaytonaWebhook(ctx: any, body: any): Promise<Response> {
 
   // Map Daytona states to our states
   // Daytona states: starting, started, stopped, unknown, destroying, destroyed
-  // Our states: started, stopped, archived
-  let mappedState: "started" | "stopped" | "archived" | null = null;
+  // Our states: running, stopped, archived
+  let mappedState: "running" | "stopped" | "archived" | null = null;
 
   if (newState === "started") {
-    mappedState = "started";
+    mappedState = "running";
   } else if (newState === "stopped") {
     mappedState = "stopped";
   } else if (newState === "destroying" || newState === "destroyed") {

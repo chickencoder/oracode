@@ -6,7 +6,6 @@ import {
 import { MessageRenderer } from "@/components/message-renderer";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@repo/convex/_generated/api";
-import { useState } from "react";
 import { nanoid } from "nanoid";
 import type { Id } from "@repo/convex/_generated/dataModel";
 import { useOrganization } from "@clerk/clerk-react";
@@ -19,20 +18,12 @@ import {
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputToolbar,
-  PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useOptimisticMessages } from "@/hooks/use-optimistic-messages";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { toast } from "sonner";
-import { Shield } from "lucide-react";
 import { PermissionCard } from "@/components/permission-card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 interface ChatPanelProps {
   branchId: Id<"branches"> | undefined;
@@ -87,7 +78,10 @@ export function ChatPanel({ branchId, isSandboxReady }: ChatPanelProps) {
       : "ready";
 
   const handleSubmit = async (message: PromptInputMessage) => {
-    if (!isSandboxReady) return;
+    if (!isSandboxReady) {
+      toast.error("Sandbox isn't ready yet. Please wait...");
+      return;
+    }
 
     const messageText = message.text?.trim();
     if (!messageText) return;
@@ -102,26 +96,12 @@ export function ChatPanel({ branchId, isSandboxReady }: ChatPanelProps) {
         id: messageId,
         parts: [{ type: "text", text: messageText }],
         metadata: {},
-        branchId: branchId,
+        branchId: branchId as Id<"branches">,
       });
     } catch (error) {
       console.error("Failed to send message:", error);
       toast.error("Failed to send message");
       clearOptimisticMessages();
-    }
-  };
-
-  const handlePermissionModeChange = async (
-    mode: "default" | "acceptEdits" | "bypassPermissions",
-  ) => {
-    try {
-      await setPermissionMode({ branchId, mode });
-      toast.success(
-        `Permission mode set to ${mode === "default" ? "Ask First" : mode === "acceptEdits" ? "Auto-approve Edits" : "Allow All"}`,
-      );
-    } catch (error) {
-      console.error("Failed to update permission mode:", error);
-      toast.error("Failed to update permission mode");
     }
   };
 
@@ -163,19 +143,26 @@ export function ChatPanel({ branchId, isSandboxReady }: ChatPanelProps) {
             {(attachment) => <PromptInputAttachment data={attachment} />}
           </PromptInputAttachments>
           <PromptInputTextarea
-            placeholder={
-              isSandboxReady ? "Ask anything..." : "Waiting for sandbox..."
-            }
-            disabled={!isSandboxReady || isGenerating || isAssistantStreaming}
+            placeholder="Ask anything..."
+            disabled={isGenerating || isAssistantStreaming}
           />
         </PromptInputBody>
         <PromptInputToolbar>
-          <PromptInputSubmit
-            status={status}
-            variant="default"
-            className="ml-auto"
-            disabled={!isSandboxReady || isGenerating || isAssistantStreaming}
-          />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <PromptInputSubmit
+                status={status}
+                variant="default"
+                className="ml-auto"
+                disabled={
+                  !isSandboxReady || isGenerating || isAssistantStreaming
+                }
+              />
+            </TooltipTrigger>
+            {!isSandboxReady && (
+              <TooltipContent>Sandbox isn't ready yet</TooltipContent>
+            )}
+          </Tooltip>
         </PromptInputToolbar>
       </PromptInput>
     </div>

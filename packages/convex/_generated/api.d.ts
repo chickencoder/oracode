@@ -15,6 +15,7 @@ import type {
 } from "convex/server";
 import type * as branches from "../branches.js";
 import type * as github from "../github.js";
+import type * as githubActions from "../githubActions.js";
 import type * as http from "../http.js";
 import type * as lib_clerkAuth from "../lib/clerkAuth.js";
 import type * as lib_crypto from "../lib/crypto.js";
@@ -37,6 +38,7 @@ import type * as sandboxActions from "../sandboxActions.js";
 import type * as sandboxes from "../sandboxes.js";
 import type * as secrets from "../secrets.js";
 import type * as settings from "../settings.js";
+import type * as snapshots from "../snapshots.js";
 import type * as types from "../types.js";
 import type * as users from "../users.js";
 import type * as variables from "../variables.js";
@@ -52,6 +54,7 @@ import type * as variables from "../variables.js";
 declare const fullApi: ApiFromModules<{
   branches: typeof branches;
   github: typeof github;
+  githubActions: typeof githubActions;
   http: typeof http;
   "lib/clerkAuth": typeof lib_clerkAuth;
   "lib/crypto": typeof lib_crypto;
@@ -74,6 +77,7 @@ declare const fullApi: ApiFromModules<{
   sandboxes: typeof sandboxes;
   secrets: typeof secrets;
   settings: typeof settings;
+  snapshots: typeof snapshots;
   types: typeof types;
   users: typeof users;
   variables: typeof variables;

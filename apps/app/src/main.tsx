@@ -4,14 +4,13 @@ import "@fontsource-variable/geist-mono";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router";
-import { useAuth } from "@clerk/react-router";
+import { RedirectToSignIn, SignedIn, SignedOut, useAuth } from "@clerk/react-router";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexReactClient } from "convex/react";
 import { NuqsAdapter } from "nuqs/adapters/react-router/v7";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "./components/theme-provider";
 import { ClerkThemeProvider } from "./components/clerk-theme-provider";
-import { SignInPage } from "./pages/sign-in";
 import { OnboardingPage } from "./pages/onboarding";
 import { NewAccountPage } from "./pages/new-account";
 import { DashboardLayout } from "./layouts/dashboard-layout";
@@ -46,29 +45,52 @@ createRoot(document.getElementById("root")!).render(
             <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
               <Toaster position="bottom-right" />
               <Routes>
-                <Route path="/" element={<OnboardingPage />} />
-                <Route path="/sign-in/*" element={<SignInPage />} />
-                <Route path="/new-account" element={<NewAccountPage />} />
-                <Route path="/:orgSlug" element={<DashboardLayout />}>
-                  <Route index element={<ProjectsPage />} />
-                  <Route path="settings" element={<OrgSettingsLayout />}>
-                    <Route index element={<OrgGeneralSettingsPage />} />
-                    <Route path="claude-code" element={<ClaudeCodeSettingsPage />} />
-                  </Route>
-                </Route>
-                <Route path="/:orgSlug/:projectSlug" element={<ProjectLayout />}>
-                  <Route index element={<ProjectBranchesPage />} />
-                  <Route path="settings" element={<ProjectSettingsLayout />}>
-                    <Route index element={<GeneralSettingsPage />} />
-                    <Route path="sandbox" element={<DevelopmentSettingsPage />} />
-                    <Route path="environment" element={<EnvironmentVariablesPage />} />
-                  </Route>
-                </Route>
                 <Route
-                  path="/:orgSlug/:projectSlug/:branchName"
-                  element={<BranchPage />}
+                  path="*"
+                  element={
+                    <SignedIn>
+                      <Routes>
+                        <Route path="/" element={<OnboardingPage />} />
+                        <Route path="/new-account" element={<NewAccountPage />} />
+                        <Route path="/:orgSlug" element={<DashboardLayout />}>
+                          <Route index element={<ProjectsPage />} />
+                          <Route path="settings" element={<OrgSettingsLayout />}>
+                            <Route index element={<OrgGeneralSettingsPage />} />
+                            <Route
+                              path="claude-code"
+                              element={<ClaudeCodeSettingsPage />}
+                            />
+                          </Route>
+                        </Route>
+                        <Route
+                          path="/:orgSlug/:projectSlug"
+                          element={<ProjectLayout />}
+                        >
+                          <Route index element={<ProjectBranchesPage />} />
+                          <Route path="settings" element={<ProjectSettingsLayout />}>
+                            <Route index element={<GeneralSettingsPage />} />
+                            <Route
+                              path="sandbox"
+                              element={<DevelopmentSettingsPage />}
+                            />
+                            <Route
+                              path="environment"
+                              element={<EnvironmentVariablesPage />}
+                            />
+                          </Route>
+                        </Route>
+                        <Route
+                          path="/:orgSlug/:projectSlug/:branchName"
+                          element={<BranchPage />}
+                        />
+                      </Routes>
+                    </SignedIn>
+                  }
                 />
               </Routes>
+              <SignedOut>
+                <RedirectToSignIn />
+              </SignedOut>
             </ConvexProviderWithClerk>
           </ClerkThemeProvider>
         </ThemeProvider>
