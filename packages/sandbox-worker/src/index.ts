@@ -104,7 +104,7 @@ const branchId = process.env.BRANCH_ID! as Id<"branches">;
 async function waitForPermissionResolution(
   permissionId: string,
   timeoutMs = 5 * 60 * 1000, // 5 minutes default
-): Promise<CanUseToolResponse> {
+): Promise<ReturnType<CanUseTool>> {
   const startTime = Date.now();
   const pollInterval = 500; // Poll every 500ms
 
