@@ -7,16 +7,12 @@
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
     "@repo/convex#build": {
-      "dependsOn": ["^build", "bundle-worker"],
+      "dependsOn": ["^build"],
       "outputs": []
-    },
-    "@repo/convex#bundle-worker": {
-      "dependsOn": ["@repo/sandbox-worker#build"],
-      "outputs": ["lib/workerBundleContent.ts"]
     },
     "@repo/sandbox-worker#build": {
       "dependsOn": [],
-      "outputs": ["dist/**"]
+      "outputs": ["dist/**", "../convex/lib/workerBundleContent.ts"]
     },
     "dev": {
       "cache": false,

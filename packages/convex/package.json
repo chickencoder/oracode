@@ -23,8 +23,7 @@
     "dev": "convex dev",
     "build": "tsc --noEmit",
     "deploy": "convex deploy",
-    "type-check": "tsc --noEmit",
-    "bundle-worker": "node ../../scripts/bundle-worker.js"
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@clerk/backend": "^2.17.2",
