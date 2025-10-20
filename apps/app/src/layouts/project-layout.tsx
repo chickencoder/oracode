@@ -28,7 +28,7 @@ export function ProjectLayout() {
   }>();
 
   // Ensure the correct org is set based on URL
-  const { organization, isLoaded: isOrgLoaded } = useOrgNavigation(orgSlug);
+  const { organization } = useOrgNavigation(orgSlug);
   const { orgs, isOrgsLoaded, handleOrgSelect } = useOrgSelection();
 
   const project = useQuery(

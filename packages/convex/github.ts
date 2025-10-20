@@ -5,7 +5,6 @@ import {
   action,
   internalMutation,
   internalAction,
-  internalQuery,
 } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { z } from "zod";

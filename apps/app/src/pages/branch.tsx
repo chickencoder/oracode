@@ -19,7 +19,7 @@ export function BranchPage() {
   const navigate = useNavigate();
 
   // Ensure the correct org is set based on URL
-  const { organization, isLoaded: isOrgLoaded } = useOrgNavigation(orgSlug);
+  const { organization } = useOrgNavigation(orgSlug);
 
   const branch = useQuery(
     api.branches.getBranchByOrgProjectAndBranchName,

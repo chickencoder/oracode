@@ -14,7 +14,7 @@ import { AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
 export function NewAccountPage() {
-  const { user, isLoaded: userLoaded } = useUser();
+  const { user } = useUser();
 
   const [isInstalling, setIsInstalling] = useState(false);
   const [error, setError] = useState<string | null>(null);
