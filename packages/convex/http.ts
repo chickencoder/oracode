@@ -20,7 +20,7 @@ const http = httpRouter();
 async function verifyWebhookSignature(
   payload: string,
   signature: string,
-  secret: string
+  secret: string,
 ): Promise<boolean> {
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
@@ -28,19 +28,19 @@ async function verifyWebhookSignature(
     encoder.encode(secret),
     { name: "HMAC", hash: "SHA-256" },
     false,
-    ["sign"]
+    ["sign"],
   );
 
   const signatureBytes = await crypto.subtle.sign(
     "HMAC",
     key,
-    encoder.encode(payload)
+    encoder.encode(payload),
   );
 
   // Try different signature formats that webhooks commonly use
   const hexSignature = Array.from(new Uint8Array(signatureBytes))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 
   // Format 1: "sha256=<hex>" (GitHub style)
   const expectedSignature1 = "sha256=" + hexSignature;
@@ -59,14 +59,16 @@ async function verifyWebhookSignature(
     return result === 0;
   };
 
-  return checkSignature(expectedSignature1) || checkSignature(expectedSignature2);
+  return (
+    checkSignature(expectedSignature1) || checkSignature(expectedSignature2)
+  );
 }
 
 // Helper function to verify GitHub webhook signature (uses same logic)
 async function verifyGitHubSignature(
   payload: string,
   signature: string,
-  secret: string
+  secret: string,
 ): Promise<boolean> {
   return verifyWebhookSignature(payload, signature, secret);
 }
@@ -107,7 +109,9 @@ async function handleDaytonaWebhook(ctx: any, body: any): Promise<Response> {
     mappedState = "archived";
   } else if (newState === "starting" || newState === "unknown") {
     // Transitional states - log but don't update
-    console.log(`Sandbox ${sandboxId} transitioning: ${oldState} -> ${newState}`);
+    console.log(
+      `Sandbox ${sandboxId} transitioning: ${oldState} -> ${newState}`,
+    );
     return new Response(null, { status: 200 });
   }
 
@@ -124,104 +128,112 @@ async function handleDaytonaWebhook(ctx: any, body: any): Promise<Response> {
 
 // GitHub App installation callback (handles both GET and POST)
 const handleGitHubCallback = httpAction(async (ctx, request) => {
-    const url = new URL(request.url);
-    const installationId = url.searchParams.get("installation_id");
-    const setupAction = url.searchParams.get("setup_action");
-    const state = url.searchParams.get("state");
+  const url = new URL(request.url);
+  const installationId = url.searchParams.get("installation_id");
+  const setupAction = url.searchParams.get("setup_action");
+  const state = url.searchParams.get("state");
 
-    // Validate parameters
-    if (!installationId || !state || setupAction !== "install") {
-      return new Response("Invalid callback parameters", { status: 400 });
-    }
+  // Validate parameters
+  if (!installationId || !state || setupAction !== "install") {
+    return new Response("Invalid callback parameters", { status: 400 });
+  }
 
-    try {
-      // Fetch installation details from GitHub using JWT
-      const jwt = await ctx.runAction(internal.github.generateAppToken, {});
+  try {
+    // Fetch installation details from GitHub using JWT
+    const jwt = await ctx.runAction(internal.github.generateAppToken, {});
 
-      const installationData = await fetch(
-        `https://api.github.com/app/installations/${installationId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${jwt}`,
-            Accept: "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-          },
-        }
-      );
+    const installationData = await fetch(
+      `https://api.github.com/app/installations/${installationId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+      },
+    );
 
-      const installationJson = await installationData.json();
+    const installationJson = await installationData.json();
 
-      // Validate GitHub API response with Zod
-      const installation = githubInstallationSchema.parse(installationJson);
+    // Validate GitHub API response with Zod
+    const installation = githubInstallationSchema.parse(installationJson);
 
-      // Store installation in Convex (also validates and deletes state token)
-      const { installedBy, existingOrgId } = await ctx.runMutation(internal.github.storeInstallation, {
+    // Store installation in Convex (also validates and deletes state token)
+    const { installedBy, existingOrgId } = await ctx.runMutation(
+      internal.github.storeInstallation,
+      {
         stateToken: state,
         installationId: parseInt(installationId),
         githubOrgId: installation.account.id,
         githubOrgLogin: installation.account.login,
-      });
+      },
+    );
 
-      let clerkOrgId: string;
-      let slug: string;
+    let clerkOrgId: string;
+    let slug: string;
 
-      if (existingOrgId) {
-        // Reconnecting from settings - org already exists
-        clerkOrgId = existingOrgId;
+    if (existingOrgId) {
+      // Reconnecting from settings - org already exists
+      clerkOrgId = existingOrgId;
 
-        // Get org slug from Clerk
-        const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-        if (!clerkSecretKey) {
-          throw new Error("CLERK_SECRET_KEY environment variable is required");
-        }
-        const { createClerkClient } = await import("@clerk/backend");
-        const clerk = createClerkClient({ secretKey: clerkSecretKey });
-        const org = await clerk.organizations.getOrganization({ organizationId: clerkOrgId });
-        slug = org.slug || org.id;
-
-        // Link the installation to the existing org
-        await ctx.runMutation(internal.github.linkOrganizationToInstallationInternal, {
-          githubOrgLogin: installation.account.login,
-          clerkOrgId: clerkOrgId,
-        });
-
-        // Redirect back to settings page
-        const appUrl = process.env.VITE_APP_URL || "http://localhost:5173";
-        return Response.redirect(
-          `${appUrl}/${slug}/settings/github?reconnect=success`,
-          302
-        );
-      } else {
-        // New user - create Clerk organization via Backend API
-        const orgData = await ctx.runAction(
-          internal.github.createClerkOrganization,
-          {
-            userId: installedBy,
-            githubOrgLogin: installation.account.login,
-          }
-        );
-        clerkOrgId = orgData.clerkOrgId;
-        slug = orgData.slug;
-
-        // Link the installation to the newly created org
-        await ctx.runMutation(internal.github.linkOrganizationToInstallationInternal, {
-          githubOrgLogin: installation.account.login,
-          clerkOrgId: clerkOrgId,
-        });
-
-        // Redirect directly to org dashboard
-        // Clerk will automatically set this as the active org when user visits the page
-        const appUrl = process.env.VITE_APP_URL || "http://localhost:5173";
-        return Response.redirect(
-          `${appUrl}/${slug}?github=connected`,
-          302
-        );
+      // Get org slug from Clerk
+      const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+      if (!clerkSecretKey) {
+        throw new Error("CLERK_SECRET_KEY environment variable is required");
       }
-    } catch (error) {
-      console.error("GitHub installation callback error:", error);
+      const { createClerkClient } = await import("@clerk/backend");
+      const clerk = createClerkClient({ secretKey: clerkSecretKey });
+      const org = await clerk.organizations.getOrganization({
+        organizationId: clerkOrgId,
+      });
+      slug = org.slug || org.id;
+
+      // Link the installation to the existing org
+      await ctx.runMutation(
+        internal.github.linkOrganizationToInstallationInternal,
+        {
+          githubOrgLogin: installation.account.login,
+          clerkOrgId: clerkOrgId,
+        },
+      );
+
+      // Redirect back to settings page
       const appUrl = process.env.VITE_APP_URL || "http://localhost:5173";
-      return Response.redirect(`${appUrl}/?installation=error`, 302);
+      return Response.redirect(
+        `${appUrl}/${slug}/settings/github?reconnect=success`,
+        302,
+      );
+    } else {
+      // New user - create Clerk organization via Backend API
+      const orgData = await ctx.runAction(
+        internal.github.createClerkOrganization,
+        {
+          userId: installedBy,
+          githubOrgLogin: installation.account.login,
+        },
+      );
+      clerkOrgId = orgData.clerkOrgId;
+      slug = orgData.slug;
+
+      // Link the installation to the newly created org
+      await ctx.runMutation(
+        internal.github.linkOrganizationToInstallationInternal,
+        {
+          githubOrgLogin: installation.account.login,
+          clerkOrgId: clerkOrgId,
+        },
+      );
+
+      // Redirect directly to org dashboard
+      // Clerk will automatically set this as the active org when user visits the page
+      const appUrl = process.env.SITE_URL || "http://app.oracode.dev";
+      return Response.redirect(`${appUrl}/${slug}?github=connected`, 302);
     }
+  } catch (error) {
+    console.error("GitHub installation callback error:", error);
+    const appUrl = process.env.SITE_URL || "http://app.oracode.dev";
+    return Response.redirect(`${appUrl}/?installation=error`, 302);
+  }
 });
 
 http.route({
@@ -314,9 +326,12 @@ http.route({
     const eventType = payload.type;
 
     if (eventType === "user.created" || eventType === "user.updated") {
-      const { id, email_addresses, first_name, last_name, image_url } = payload.data;
+      const { id, email_addresses, first_name, last_name, image_url } =
+        payload.data;
 
-      const primaryEmail = email_addresses?.find((e: any) => e.id === payload.data.primary_email_address_id);
+      const primaryEmail = email_addresses?.find(
+        (e: any) => e.id === payload.data.primary_email_address_id,
+      );
 
       if (!primaryEmail?.email_address) {
         console.error("No primary email found for user:", id);
@@ -330,7 +345,10 @@ http.route({
         lastName: last_name || undefined,
         imageUrl: image_url || undefined,
       });
-    } else if (eventType === "organization.created" || eventType === "organization.updated") {
+    } else if (
+      eventType === "organization.created" ||
+      eventType === "organization.updated"
+    ) {
       const { id, slug, name } = payload.data;
 
       if (!id || !slug || !name) {
@@ -371,7 +389,11 @@ http.route({
           const rawBody = await request.text();
 
           // Verify signature using HMAC-SHA256 (common webhook signing method)
-          const isValid = await verifyWebhookSignature(rawBody, signature, webhookSecret);
+          const isValid = await verifyWebhookSignature(
+            rawBody,
+            signature,
+            webhookSecret,
+          );
 
           if (!isValid) {
             console.error("Invalid webhook signature");
@@ -382,7 +404,9 @@ http.route({
           const body = JSON.parse(rawBody);
           return await handleDaytonaWebhook(ctx, body);
         } else {
-          console.warn("DAYTONA_WEBHOOK_SECRET configured but no signature header found");
+          console.warn(
+            "DAYTONA_WEBHOOK_SECRET configured but no signature header found",
+          );
           // Allow through but log warning
         }
       }
@@ -390,7 +414,6 @@ http.route({
       // No secret configured or no signature header - parse body normally
       const body = await request.json();
       return await handleDaytonaWebhook(ctx, body);
-
     } catch (error) {
       console.error("Daytona webhook error:", error);
       return new Response("Internal error", { status: 500 });
