@@ -1,5 +1,2 @@
 # Convex generated files
 _generated/
-
-# Worker bundle (auto-generated)
-lib/workerBundleContent.ts
