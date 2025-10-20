@@ -28,7 +28,7 @@ export function getWorkerEnv(options: {
 }): Record<string, string> {
   // Base environment variables for the worker
   const baseEnv: Record<string, string> = {
-    CONVEX_URL: options.convexUrl,
+    CONVEX_CLOUD_URL: options.convexUrl,
     SANDBOX_ID: options.sandboxId,
     BRANCH_ID: options.branchId,
     NODE_ENV: "production",

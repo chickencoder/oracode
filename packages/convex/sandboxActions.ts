@@ -475,9 +475,9 @@ export const startSandbox = action({
       // Note: Claude Code CLI is pre-installed in the Docker image as a native binary
       console.log("Injecting sandbox worker...");
 
-      const convexUrl = process.env.CONVEX_URL;
+      const convexUrl = process.env.CONVEX_CLOUD_URL;
       if (!convexUrl) {
-        console.warn("⚠️ No CONVEX_URL found, skipping worker injection");
+        console.warn("⚠️ No CONVEX_CLOUD_URL found, skipping worker injection");
       } else {
         const workerResult = await injectWorkerIntoSandbox(sandbox, {
           sandboxId: sandboxId,
@@ -775,9 +775,9 @@ export const restartSandbox = action({
         }
       }
 
-      const convexUrl = process.env.CONVEX_URL;
+      const convexUrl = process.env.CONVEX_CLOUD_URL;
       if (!convexUrl) {
-        console.warn("⚠️ No CONVEX_URL found, skipping worker injection");
+        console.warn("⚠️ No CONVEX_CLOUD_URL found, skipping worker injection");
       } else {
         const workerResult = await injectWorkerIntoSandbox(sandbox, {
           sandboxId: branch.sandboxId,
@@ -1108,9 +1108,9 @@ export const resumeSandbox = action({
         }
       }
 
-      const convexUrl = process.env.CONVEX_URL;
+      const convexUrl = process.env.CONVEX_CLOUD_URL;
       if (!convexUrl) {
-        console.warn("⚠️ No CONVEX_URL found, skipping worker injection");
+        console.warn("⚠️ No CONVEX_CLOUD_URL found, skipping worker injection");
       } else {
         const workerResult = await injectWorkerIntoSandbox(sandbox, {
           sandboxId: branch.sandboxId,
