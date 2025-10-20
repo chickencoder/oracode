@@ -24,6 +24,7 @@ import { DevelopmentSettingsPage } from "./pages/project-settings/sandbox";
 import { EnvironmentVariablesPage } from "./pages/project-settings/environment";
 import { OrgGeneralSettingsPage } from "./pages/org-settings/index";
 import { ClaudeCodeSettingsPage } from "./pages/org-settings/claude-code";
+import { GitHubSettingsPage } from "./pages/org-settings/github";
 import { BranchPage } from "./pages/branch";
 
 // Import your Publishable Key
@@ -59,6 +60,10 @@ createRoot(document.getElementById("root")!).render(
                             <Route
                               path="claude-code"
                               element={<ClaudeCodeSettingsPage />}
+                            />
+                            <Route
+                              path="github"
+                              element={<GitHubSettingsPage />}
                             />
                           </Route>
                         </Route>

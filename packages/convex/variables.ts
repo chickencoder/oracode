@@ -3,8 +3,120 @@
  */
 
 import { v } from "convex/values";
-import { query, action } from "./_generated/server";
+import { query, action, internalQuery, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
+
+// Internal helper queries and mutations
+
+export const getProject = internalQuery({
+  args: {
+    projectId: v.id("projects"),
+  },
+  returns: v.union(
+    v.object({
+      _id: v.id("projects"),
+      _creationTime: v.number(),
+      orgId: v.string(),
+      githubRepoId: v.number(),
+      name: v.string(),
+      description: v.string(),
+      settings: v.object({
+        installCommand: v.string(),
+        devCommand: v.string(),
+        port: v.number(),
+      }),
+      createdAt: v.number(),
+    }),
+    v.null()
+  ),
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.projectId);
+  },
+});
+
+export const getByProjectAndKey = internalQuery({
+  args: {
+    projectId: v.id("projects"),
+    key: v.string(),
+  },
+  returns: v.union(
+    v.object({
+      _id: v.id("variables"),
+      _creationTime: v.number(),
+      projectId: v.id("projects"),
+      key: v.string(),
+      secretId: v.id("secrets"),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+      createdBy: v.string(),
+    }),
+    v.null()
+  ),
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("variables")
+      .withIndex("by_project_and_key", (q) =>
+        q.eq("projectId", args.projectId).eq("key", args.key)
+      )
+      .first();
+  },
+});
+
+export const listInternal = internalQuery({
+  args: {
+    projectId: v.id("projects"),
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id("variables"),
+      _creationTime: v.number(),
+      projectId: v.id("projects"),
+      key: v.string(),
+      secretId: v.id("secrets"),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+      createdBy: v.string(),
+    })
+  ),
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("variables")
+      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+      .collect();
+  },
+});
+
+export const create = internalMutation({
+  args: {
+    projectId: v.id("projects"),
+    key: v.string(),
+    secretId: v.id("secrets"),
+    createdBy: v.string(),
+  },
+  returns: v.id("variables"),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    return await ctx.db.insert("variables", {
+      projectId: args.projectId,
+      key: args.key,
+      secretId: args.secretId,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: args.createdBy,
+    });
+  },
+});
+
+export const deleteRecord = internalMutation({
+  args: {
+    envVarId: v.id("variables"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.envVarId);
+    return null;
+  },
+});
 
 /**
  * Get all environment variables for a project
@@ -69,7 +181,7 @@ export const set = action({
     const userId = identity.subject;
 
     // Verify project belongs to user's org
-    const project = await ctx.runQuery(internal.lib.variablesHelpers.getProject, {
+    const project = await ctx.runQuery(internal.variables.getProject, {
       projectId: args.projectId,
     });
     if (!project || project.orgId !== orgId) {
@@ -78,7 +190,7 @@ export const set = action({
 
     // Check if variable already exists
     const existing = await ctx.runQuery(
-      internal.lib.variablesHelpers.getByProjectAndKey,
+      internal.variables.getByProjectAndKey,
       {
         projectId: args.projectId,
         key: args.key,
@@ -97,7 +209,7 @@ export const set = action({
         plaintextValue: args.value,
         createdBy: userId,
       });
-      await ctx.runMutation(internal.lib.variablesHelpers.create, {
+      await ctx.runMutation(internal.variables.create, {
         projectId: args.projectId,
         key: args.key,
         secretId,
@@ -126,7 +238,7 @@ export const remove = action({
     const orgId = identity.orgId;
 
     // Verify project belongs to user's org
-    const project = await ctx.runQuery(internal.lib.variablesHelpers.getProject, {
+    const project = await ctx.runQuery(internal.variables.getProject, {
       projectId: args.projectId,
     });
     if (!project || project.orgId !== orgId) {
@@ -134,7 +246,7 @@ export const remove = action({
     }
 
     const envVar = await ctx.runQuery(
-      internal.lib.variablesHelpers.getByProjectAndKey,
+      internal.variables.getByProjectAndKey,
       {
         projectId: args.projectId,
         key: args.key,
@@ -148,7 +260,7 @@ export const remove = action({
       });
 
       // Delete the environment variable record
-      await ctx.runMutation(internal.lib.variablesHelpers.deleteRecord, {
+      await ctx.runMutation(internal.variables.deleteRecord, {
         envVarId: envVar._id,
       });
     }
@@ -171,7 +283,7 @@ export const getAllDecrypted = action({
     // by sandboxActions.ts when deploying worker to sandbox
     // If exposing to clients, add auth checks
 
-    const envVars = await ctx.runQuery(internal.lib.variablesHelpers.listInternal, {
+    const envVars = await ctx.runQuery(internal.variables.listInternal, {
       projectId: args.projectId,
     });
 

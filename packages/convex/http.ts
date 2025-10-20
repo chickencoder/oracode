@@ -154,20 +154,69 @@ const handleGitHubCallback = httpAction(async (ctx, request) => {
       // Validate GitHub API response with Zod
       const installation = githubInstallationSchema.parse(installationJson);
 
-      // Store installation in Convex (will create Clerk org)
-      await ctx.runMutation(internal.github.storeInstallation, {
+      // Store installation in Convex (also validates and deletes state token)
+      const { installedBy, existingOrgId } = await ctx.runMutation(internal.github.storeInstallation, {
         stateToken: state,
         installationId: parseInt(installationId),
         githubOrgId: installation.account.id,
         githubOrgLogin: installation.account.login,
       });
 
-      // Redirect back to app with success and GitHub org name
-      const appUrl = process.env.VITE_APP_URL || "http://localhost:5173";
-      return Response.redirect(
-        `${appUrl}/new-account?installation=success&githubOrg=${encodeURIComponent(installation.account.login)}`,
-        302
-      );
+      let clerkOrgId: string;
+      let slug: string;
+
+      if (existingOrgId) {
+        // Reconnecting from settings - org already exists
+        clerkOrgId = existingOrgId;
+
+        // Get org slug from Clerk
+        const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+        if (!clerkSecretKey) {
+          throw new Error("CLERK_SECRET_KEY environment variable is required");
+        }
+        const { createClerkClient } = await import("@clerk/backend");
+        const clerk = createClerkClient({ secretKey: clerkSecretKey });
+        const org = await clerk.organizations.getOrganization({ organizationId: clerkOrgId });
+        slug = org.slug || org.id;
+
+        // Link the installation to the existing org
+        await ctx.runMutation(internal.github.linkOrganizationToInstallationInternal, {
+          githubOrgLogin: installation.account.login,
+          clerkOrgId: clerkOrgId,
+        });
+
+        // Redirect back to settings page
+        const appUrl = process.env.VITE_APP_URL || "http://localhost:5173";
+        return Response.redirect(
+          `${appUrl}/${slug}/settings/github?reconnect=success`,
+          302
+        );
+      } else {
+        // New user - create Clerk organization via Backend API
+        const orgData = await ctx.runAction(
+          internal.github.createClerkOrganization,
+          {
+            userId: installedBy,
+            githubOrgLogin: installation.account.login,
+          }
+        );
+        clerkOrgId = orgData.clerkOrgId;
+        slug = orgData.slug;
+
+        // Link the installation to the newly created org
+        await ctx.runMutation(internal.github.linkOrganizationToInstallationInternal, {
+          githubOrgLogin: installation.account.login,
+          clerkOrgId: clerkOrgId,
+        });
+
+        // Redirect directly to org dashboard
+        // Clerk will automatically set this as the active org when user visits the page
+        const appUrl = process.env.VITE_APP_URL || "http://localhost:5173";
+        return Response.redirect(
+          `${appUrl}/${slug}?github=connected`,
+          302
+        );
+      }
     } catch (error) {
       console.error("GitHub installation callback error:", error);
       const appUrl = process.env.VITE_APP_URL || "http://localhost:5173";

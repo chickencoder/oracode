@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@repo/convex": "workspace:*",
-    "convex": "^1.18.4",
+    "convex": "catalog:",
     "hono": "^4.7.9"
   },
   "devDependencies": {

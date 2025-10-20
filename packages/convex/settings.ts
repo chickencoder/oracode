@@ -3,8 +3,65 @@
  */
 
 import { v } from "convex/values";
-import { query, action } from "./_generated/server";
+import { query, action, internalQuery, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
+
+// Internal helper queries and mutations
+
+export const getByOrgId = internalQuery({
+  args: {
+    orgId: v.string(),
+  },
+  returns: v.union(
+    v.object({
+      _id: v.id("settings"),
+      _creationTime: v.number(),
+      orgId: v.string(),
+      anthropicApiKey: v.optional(v.id("secrets")),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    }),
+    v.null()
+  ),
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("settings")
+      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .first();
+  },
+});
+
+export const createSettings = internalMutation({
+  args: {
+    orgId: v.string(),
+    anthropicApiKey: v.optional(v.id("secrets")),
+  },
+  returns: v.id("settings"),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    return await ctx.db.insert("settings", {
+      orgId: args.orgId,
+      anthropicApiKey: args.anthropicApiKey,
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+export const updateSettings = internalMutation({
+  args: {
+    settingsId: v.id("settings"),
+    anthropicApiKey: v.optional(v.id("secrets")),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.settingsId, {
+      anthropicApiKey: args.anthropicApiKey,
+      updatedAt: Date.now(),
+    });
+    return null;
+  },
+});
 
 /**
  * Get organization settings for the authenticated user's org
@@ -61,7 +118,7 @@ export const setAnthropicApiKey = action({
     }
 
     // Get or create organization settings
-    const existingSettings = await ctx.runQuery(internal.lib.settingsHelpers.getByOrgId, {
+    const existingSettings = await ctx.runQuery(internal.settings.getByOrgId, {
       orgId,
     });
 
@@ -79,7 +136,7 @@ export const setAnthropicApiKey = action({
           plaintextValue: args.apiKey,
           createdBy: userId,
         });
-        await ctx.runMutation(internal.lib.settingsHelpers.updateSettings, {
+        await ctx.runMutation(internal.settings.updateSettings, {
           settingsId: existingSettings._id,
           anthropicApiKey: secretId,
         });
@@ -90,7 +147,7 @@ export const setAnthropicApiKey = action({
         plaintextValue: args.apiKey,
         createdBy: userId,
       });
-      await ctx.runMutation(internal.lib.settingsHelpers.createSettings, {
+      await ctx.runMutation(internal.settings.createSettings, {
         orgId,
         anthropicApiKey: secretId,
       });
@@ -113,7 +170,7 @@ export const removeAnthropicApiKey = action({
     }
     const orgId = identity.orgId;
 
-    const settings = await ctx.runQuery(internal.lib.settingsHelpers.getByOrgId, {
+    const settings = await ctx.runQuery(internal.settings.getByOrgId, {
       orgId,
     });
 
@@ -124,7 +181,7 @@ export const removeAnthropicApiKey = action({
       });
 
       // Remove the reference
-      await ctx.runMutation(internal.lib.settingsHelpers.updateSettings, {
+      await ctx.runMutation(internal.settings.updateSettings, {
         settingsId: settings._id,
         anthropicApiKey: undefined,
       });
@@ -147,7 +204,7 @@ export const getAnthropicApiKeyDecrypted = action({
     // by sandboxActions.ts and similar server-side code
     // If exposing to clients, add auth checks
 
-    const settings = await ctx.runQuery(internal.lib.settingsHelpers.getByOrgId, {
+    const settings = await ctx.runQuery(internal.settings.getByOrgId, {
       orgId: args.orgId,
     });
 

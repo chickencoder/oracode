@@ -3,7 +3,8 @@ import { Settings } from "lucide-react";
 
 const settingsNav = [
   { name: "General", href: "", icon: Settings, type: "item" as const },
-  { name: "Agents", type: "label" as const },
+  { name: "Connections", type: "label" as const },
+  { name: "GitHub", href: "/github", iconImage: "https://github.com/github.png?s=32", type: "item" as const },
   { name: "Claude Code", href: "/claude-code", iconImage: "/claude.png", type: "item" as const },
 ];
 
@@ -17,6 +18,7 @@ export function OrgSettingsLayout() {
 
   const getActivePage = () => {
     if (currentPath === basePath) return "General";
+    if (currentPath.endsWith("/github")) return "GitHub";
     if (currentPath.endsWith("/claude-code")) return "Claude Code";
     return "General";
   };

@@ -1,2 +1,4 @@
 # Convex generated files
 _generated/
+
+.env.local

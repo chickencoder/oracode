@@ -1,10 +1,7 @@
-import { useEffect, useState } from "react";
-import { useOrganizationList, UserButton, useUser } from "@clerk/clerk-react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useState } from "react";
+import { UserButton, useUser } from "@clerk/clerk-react";
 import { useMutation } from "convex/react";
 import { api } from "@repo/convex/_generated/api";
-import { useGitHubInstallation } from "../hooks/use-github-installation";
-import { normalizeOrgSlug, getGitHubAvatarUrl } from "../lib/constants";
 import { Button } from "../components/ui/button";
 import {
   Card,
@@ -13,151 +10,18 @@ import {
   CardHeader,
   CardTitle,
 } from "../components/ui/card";
-import { Loader, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
-type ProcessingStep = "idle" | "creating-org" | "linking-installation" | "complete";
-
 export function NewAccountPage() {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const { user, isLoaded: userLoaded } = useUser();
 
   const [isInstalling, setIsInstalling] = useState(false);
-  const [processingStep, setProcessingStep] = useState<ProcessingStep>("idle");
   const [error, setError] = useState<string | null>(null);
-
-  // Check if we're linking to an existing org
-  const existingOrgId = searchParams.get("orgId");
-
-  const {
-    isLoaded: orgLoaded,
-    userMemberships,
-    createOrganization,
-    setActive,
-  } = useOrganizationList({ userMemberships: true });
 
   const createInstallationState = useMutation(
     api.github.createInstallationState,
   );
-  const linkOrganizationToInstallation = useMutation(
-    api.github.linkOrganizationToInstallation,
-  );
-
-  const { installationStatus, githubOrg } = useGitHubInstallation();
-
-  // Handle GitHub App installation callback
-  useEffect(() => {
-    if (!orgLoaded || !userMemberships || processingStep !== "idle") return;
-
-    // Handle error callback
-    if (installationStatus === "error") {
-      setError("GitHub App installation failed. Please try again.");
-      return;
-    }
-
-    // Handle success callback
-    if (installationStatus === "success" && githubOrg) {
-      handleInstallationCallback(githubOrg);
-    }
-  }, [
-    installationStatus,
-    githubOrg,
-    orgLoaded,
-    userMemberships,
-    processingStep,
-  ]);
-
-  const handleInstallationCallback = async (githubOrgLogin: string) => {
-    try {
-      const expectedSlug = normalizeOrgSlug(githubOrgLogin);
-      const githubAvatar = getGitHubAvatarUrl(githubOrgLogin, 200);
-
-      // Step 1: Find or create Clerk organization
-      let clerkOrg: { id: string; slug: string | null };
-
-      if (existingOrgId) {
-        // User wants to link to a specific existing org
-        const org = userMemberships?.data?.find(
-          (m) => m.organization.id === existingOrgId
-        );
-
-        if (!org) {
-          throw new Error("Organization not found");
-        }
-
-        clerkOrg = {
-          id: org.organization.id,
-          slug: org.organization.slug,
-        };
-      } else {
-        // Check if org already exists with matching slug/name
-        const existingOrg = userMemberships?.data?.find(
-          (m) =>
-            m.organization.slug === expectedSlug ||
-            m.organization.name === githubOrgLogin
-        );
-
-        if (existingOrg) {
-          // Org exists - update avatar if needed
-          if (!existingOrg.organization.hasImage) {
-            existingOrg.organization
-              .setLogo({ file: githubAvatar })
-              .catch((err) => {
-                console.warn("Failed to update org image:", err);
-              });
-          }
-
-          clerkOrg = {
-            id: existingOrg.organization.id,
-            slug: existingOrg.organization.slug,
-          };
-        } else {
-          // Create new organization
-          setProcessingStep("creating-org");
-
-          if (!createOrganization) {
-            throw new Error("Unable to create organization");
-          }
-
-          const newOrg = await createOrganization({
-            name: githubOrgLogin,
-            slug: expectedSlug,
-          });
-
-          clerkOrg = {
-            id: newOrg.id,
-            slug: newOrg.slug,
-          };
-        }
-      }
-
-      // Step 2: Set organization as active (use slug if available)
-      if (setActive) {
-        const orgIdentifier = clerkOrg.slug || clerkOrg.id;
-        await setActive({ organization: orgIdentifier });
-      }
-
-      // Step 3: Link GitHub installation to Clerk org (with explicit orgId)
-      setProcessingStep("linking-installation");
-      await linkOrganizationToInstallation({
-        githubOrgLogin,
-        clerkOrgId: clerkOrg.id,
-      });
-
-      // Step 4: Navigate to org dashboard
-      setProcessingStep("complete");
-      const orgSlug = clerkOrg.slug || clerkOrg.id;
-      navigate(`/${orgSlug}`, { replace: true });
-    } catch (err) {
-      console.error("Installation callback error:", err);
-      const message =
-        err instanceof Error ? err.message : "Failed to complete setup";
-      setError(message);
-      toast.error(message);
-      setProcessingStep("idle");
-    }
-  };
 
   const handleInstallGitHubApp = async () => {
     setIsInstalling(true);
@@ -172,7 +36,7 @@ export function NewAccountPage() {
     try {
       const { stateToken } = await createInstallationState({
         userId: user.id,
-        orgId: existingOrgId || undefined,
+        orgId: undefined,
       });
 
       const githubAppSlug = import.meta.env.VITE_GITHUB_APP_SLUG;
@@ -196,54 +60,7 @@ export function NewAccountPage() {
 
   const handleRetry = () => {
     setError(null);
-    setProcessingStep("idle");
   };
-
-  // Loading state
-  if (!orgLoaded || !userLoaded) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
-          <Loader className="size-4 animate-spin" />
-          <p className="text-sm">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Processing states
-  if (processingStep === "creating-org") {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
-          <Loader className="size-4 animate-spin" />
-          <p className="text-sm">Creating organization...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (processingStep === "linking-installation") {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
-          <Loader className="size-4 animate-spin" />
-          <p className="text-sm">Linking GitHub installation...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (processingStep === "complete") {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
-          <Loader className="size-4 animate-spin" />
-          <p className="text-sm">Redirecting...</p>
-        </div>
-      </div>
-    );
-  }
 
   // Main UI
   return (
@@ -254,12 +71,10 @@ export function NewAccountPage() {
       <Card className="max-w-md w-full">
         <CardHeader className="text-center">
           <CardTitle className="text-lg tracking-tight font-medium">
-            {existingOrgId ? "Connect GitHub" : "Connect to GitHub"}
+            Connect to GitHub
           </CardTitle>
           <CardDescription>
-            {existingOrgId
-              ? "Connect your GitHub repositories to this organization"
-              : "You will be redirected to GitHub to grant access to your organization or personal account"}
+            You will be redirected to GitHub to grant access to your organization or personal account
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -282,7 +97,7 @@ export function NewAccountPage() {
           <Button
             onClick={handleInstallGitHubApp}
             loading={isInstalling}
-            disabled={processingStep !== "idle"}
+            disabled={isInstalling}
             className="w-full"
             size="lg"
           >

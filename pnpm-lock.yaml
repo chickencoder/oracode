@@ -4,6 +4,12 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    convex:
+      specifier: 1.27.5
+      version: 1.27.5
+
 overrides:
   vite: npm:rolldown-vite@7.1.14
 
@@ -105,7 +111,7 @@ importers:
         specifier: ^1.1.1
         version: 1.1.1(@types/react-dom@19.2.1(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       convex:
-        specifier: ^1.27.3
+        specifier: 'catalog:'
         version: 1.27.5(@clerk/clerk-react@5.51.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)
       date-fns:
         specifier: ^4.1.0
@@ -208,7 +214,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/convex
       convex:
-        specifier: ^1.18.4
+        specifier: 'catalog:'
         version: 1.27.5(@clerk/clerk-react@5.51.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)
       hono:
         specifier: ^4.7.9
@@ -331,7 +337,7 @@ importers:
         specifier: workspace:*
         version: link:../convex
       convex:
-        specifier: ^1.27.3
+        specifier: 'catalog:'
         version: 1.27.5(@clerk/clerk-react@5.51.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)
       dotenv:
         specifier: ^17.2.2

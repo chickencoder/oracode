@@ -5,10 +5,13 @@ import {
   action,
   internalMutation,
   internalAction,
+  internalQuery,
 } from "./_generated/server";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { z } from "zod";
 import { generateGitHubJWT, generateGitHubInstallationToken } from "./lib/githubAuth";
+import { normalizeOrgSlug } from "./lib/helpers";
+import { createClerkClient } from "@clerk/backend";
 
 const githubRepositorySchema = z.object({
   id: z.number(),
@@ -60,7 +63,10 @@ export const storeInstallation = internalMutation({
     githubOrgId: v.number(),
     githubOrgLogin: v.string(),
   },
-  returns: v.null(),
+  returns: v.object({
+    installedBy: v.string(),
+    existingOrgId: v.union(v.string(), v.null()),
+  }),
   handler: async (ctx, args) => {
     // Verify and get state
     const state = await ctx.db
@@ -76,7 +82,7 @@ export const storeInstallation = internalMutation({
       throw new Error("State token expired");
     }
 
-    // Check if installation already exists
+    // Check if installation already exists (idempotency)
     const existing = await ctx.db
       .query("githubInstallations")
       .withIndex("by_installation_id", (q) =>
@@ -92,9 +98,9 @@ export const storeInstallation = internalMutation({
         installedAt: Date.now(),
       });
     } else {
-      // Create new installation record (orgId will be added later by frontend)
+      // Create new installation record (orgId will be added later if not already set)
       await ctx.db.insert("githubInstallations", {
-        orgId: state.orgId || "", // Will be updated later when Clerk org is created
+        orgId: state.orgId || "", // Already set if reconnecting from settings
         githubOrgId: args.githubOrgId,
         githubOrgLogin: args.githubOrgLogin,
         installationId: args.installationId,
@@ -103,8 +109,86 @@ export const storeInstallation = internalMutation({
       });
     }
 
-    // Delete used state token
+    // Delete used state token to prevent reuse
     await ctx.db.delete(state._id);
+
+    // Return userId and existingOrgId for subsequent operations
+    return {
+      installedBy: state.userId,
+      existingOrgId: state.orgId || null,
+    };
+  },
+});
+
+// Internal: Create Clerk organization using Backend API
+export const createClerkOrganization = internalAction({
+  args: {
+    userId: v.string(),
+    githubOrgLogin: v.string(),
+  },
+  returns: v.object({
+    clerkOrgId: v.string(),
+    slug: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+
+    if (!clerkSecretKey) {
+      throw new Error("CLERK_SECRET_KEY environment variable is required");
+    }
+
+    const clerk = createClerkClient({ secretKey: clerkSecretKey });
+
+    // Normalize GitHub org name to valid slug
+    const slug = normalizeOrgSlug(args.githubOrgLogin);
+
+    try {
+      // Create organization via Clerk Backend API
+      const organization = await clerk.organizations.createOrganization({
+        name: args.githubOrgLogin,
+        slug: slug,
+        createdBy: args.userId,
+      });
+
+      // Immediately sync to Convex DB (don't wait for webhook)
+      await ctx.runMutation(internal.organizations.upsertFromClerk, {
+        clerkOrgId: organization.id,
+        slug: organization.slug || organization.id,
+        name: organization.name,
+      });
+
+      return {
+        clerkOrgId: organization.id,
+        slug: organization.slug || organization.id,
+      };
+    } catch (error: any) {
+      // Handle slug collision or duplicate org errors
+      if (error?.errors?.[0]?.code === "form_identifier_exists" ||
+          error?.clerkError && error?.errors?.[0]?.meta?.paramName === "slug") {
+        // Slug already exists, append random suffix
+        const uniqueSlug = `${slug}-${Math.random().toString(36).substring(2, 8)}`;
+        const organization = await clerk.organizations.createOrganization({
+          name: args.githubOrgLogin,
+          slug: uniqueSlug,
+          createdBy: args.userId,
+        });
+
+        // Immediately sync to Convex DB (don't wait for webhook)
+        await ctx.runMutation(internal.organizations.upsertFromClerk, {
+          clerkOrgId: organization.id,
+          slug: organization.slug || organization.id,
+          name: organization.name,
+        });
+
+        return {
+          clerkOrgId: organization.id,
+          slug: organization.slug || organization.id,
+        };
+      }
+
+      // Re-throw other errors
+      throw error;
+    }
   },
 });
 
@@ -179,6 +263,44 @@ export const linkOrganizationToInstallation = mutation({
     // Update with Clerk org ID
     await ctx.db.patch(installation._id, {
       orgId,
+    });
+  },
+});
+
+// Internal: Link organization to installation (for backend use)
+export const linkOrganizationToInstallationInternal = internalMutation({
+  args: {
+    githubOrgLogin: v.string(),
+    clerkOrgId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    // Find installation by GitHub org login
+    const installation = await ctx.db
+      .query("githubInstallations")
+      .filter((q) => q.eq(q.field("githubOrgLogin"), args.githubOrgLogin))
+      .first();
+
+    if (!installation) {
+      throw new Error("Installation not found");
+    }
+
+    // Clean up any old installations for this orgId before linking the new one
+    const existingInstallations = await ctx.db
+      .query("githubInstallations")
+      .withIndex("by_org", (q) => q.eq("orgId", args.clerkOrgId))
+      .collect();
+
+    for (const existing of existingInstallations) {
+      // Delete old installations that are different from the one we're linking
+      if (existing._id !== installation._id) {
+        await ctx.db.delete(existing._id);
+      }
+    }
+
+    // Update with Clerk org ID
+    await ctx.db.patch(installation._id, {
+      orgId: args.clerkOrgId,
     });
   },
 });
