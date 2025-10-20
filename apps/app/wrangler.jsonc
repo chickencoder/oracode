@@ -3,5 +3,14 @@
   "compatibility_date": "2025-10-20",
   "assets": {
     "not_found_handling": "single-page-application"
+  },
+  "vars": {
+    "VITE_CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsub3JhY29kZS5kZXYk",
+    "CLERK_SIGN_UP_URL": "/sign-up",
+    "CLERK_SIGN_UP_FALLBACK_REDIRECT_URL": "/",
+    "CLERK_SIGN_IN_FALLBACK_REDIRECT_URL": "/",
+    "VITE_GITHUB_APP_SLUG": "oracode-for-github",
+    "VITE_APP_URL": "https://app.oracode.dev",
+    "VITE_CONVEX_URL": "https://precious-flamingo-144.convex.cloud"
   }
 }
