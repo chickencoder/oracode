@@ -4,7 +4,6 @@ import { useQuery, useAction } from "convex/react";
 import { toast } from "sonner";
 import { useOrganization } from "@clerk/clerk-react";
 import { api } from "@repo/convex/_generated/api";
-import type { Id } from "@repo/convex/_generated/dataModel";
 import {
   Card,
   CardContent,
@@ -99,10 +98,7 @@ export function EnvironmentVariablesPage() {
     return parsed;
   };
 
-  const handlePaste = (
-    e: React.ClipboardEvent<HTMLInputElement>,
-    index: number,
-  ) => {
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     const pastedText = e.clipboardData.getData("text");
 
     // Check if the pasted content looks like an env file (has = signs)
@@ -285,7 +281,7 @@ export function EnvironmentVariablesPage() {
                 </div>
               ) : (
                 <>
-                  {visibleVars.map((envVar, index) => {
+                  {visibleVars.map((envVar) => {
                     const actualIndex = envVars.indexOf(envVar);
                     return (
                       <div
@@ -297,7 +293,7 @@ export function EnvironmentVariablesPage() {
                           onChange={(e) =>
                             handleUpdateKey(actualIndex, e.target.value)
                           }
-                          onPaste={(e) => handlePaste(e, actualIndex)}
+                          onPaste={(e) => handlePaste(e)}
                           placeholder="KEY_NAME"
                           className="flex-1 font-mono text-sm"
                           disabled={!envVar.isNew}
@@ -310,7 +306,7 @@ export function EnvironmentVariablesPage() {
                           onChange={(e) =>
                             handleUpdateValue(actualIndex, e.target.value)
                           }
-                          onPaste={(e) => handlePaste(e, actualIndex)}
+                          onPaste={(e) => handlePaste(e)}
                           onFocus={(e) => {
                             if (
                               !envVar.isNew &&

@@ -9,7 +9,6 @@ import { Response } from "@/components/ai-elements/response";
 import { ToolParam } from "@/components/ai-elements/task";
 import { LoadingText } from "@/components/loading-text";
 import type { MessageData, UserInfo } from "@repo/convex/types";
-import type { JSX } from "react";
 import {
   Search,
   FileText,
@@ -180,7 +179,6 @@ const renderToolCall = (
 
 export function MessageRenderer({
   messages,
-  currentUser,
 }: MessageRendererProps) {
   return (
     <>

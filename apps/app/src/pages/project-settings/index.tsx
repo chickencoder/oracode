@@ -7,7 +7,6 @@ import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { useOrganization } from "@clerk/clerk-react";
 import { api } from "@repo/convex/_generated/api";
-import type { Id } from "@repo/convex/_generated/dataModel";
 import {
   Form,
   FormControl,

@@ -1,11 +1,10 @@
 "use node";
 
-import { v, type Infer } from "convex/values";
+import { v } from "convex/values";
 import { action, internalAction, type ActionCtx } from "./_generated/server";
-import { api, internal } from "./_generated/api";
-import type { Id, Doc } from "./_generated/dataModel";
+import { api } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { Daytona } from "@daytonaio/sdk";
-import ms from "ms";
 import {
   generateGitHubInstallationToken,
   getRepositoryCloneUrl,
@@ -1344,7 +1343,7 @@ export const deleteSandbox = internalAction({
     error: v.optional(v.string()),
   }),
   handler: async (
-    ctx,
+    _ctx,
     args: { sandboxId: string },
   ): Promise<{ success: boolean; error?: string }> => {
     console.log("=== deleteSandbox action called ===");

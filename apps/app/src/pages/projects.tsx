@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/input-group";
 import {
   Empty,
-  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -38,9 +37,7 @@ export function ProjectsPage() {
   const { projects, isLoading } = useProjects();
 
   const handleProjectClick = (project: Project) => {
-    if (project.slug) {
-      navigate(`/${orgSlug}/${project.slug}`);
-    }
+    navigate(`/${orgSlug}/project/${project._id}`);
   };
 
   // Filter projects based on search query

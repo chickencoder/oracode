@@ -4,7 +4,7 @@ import type { MessageData } from "@repo/convex/types";
 /**
  * Create a user message object
  */
-export function createUserMessage(text: string, id?: string): MessageData {
+export function createUserMessage(text: string, id?: string): Partial<MessageData> {
   return {
     id: id ?? nanoid(),
     role: "user",
@@ -16,7 +16,7 @@ export function createUserMessage(text: string, id?: string): MessageData {
 /**
  * Create an optimistic assistant message (shown while waiting for response)
  */
-export function createOptimisticAssistantMessage(): MessageData {
+export function createOptimisticAssistantMessage(): Partial<MessageData> {
   return {
     id: `temp-${nanoid()}`,
     role: "assistant",

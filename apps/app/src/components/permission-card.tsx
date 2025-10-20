@@ -9,7 +9,6 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -45,7 +44,6 @@ function getToolTitle(toolName: string, toolInput: any): string {
         : "a file";
       return `Edit file ${editPath}`;
     case "Bash":
-      const command = toolInput?.command || "a command";
       return `Run command`;
     case "Glob":
       return `Search for files`;
@@ -99,7 +97,6 @@ export function PermissionCard({
   id,
   toolName,
   toolInput,
-  requestedAt,
 }: PermissionCardProps) {
   const [isResolving, setIsResolving] = useState(false);
   const resolvePermission = useMutation(api.permissions.resolvePermission);

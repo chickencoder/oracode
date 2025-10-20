@@ -1,6 +1,4 @@
 "use node";
-
-import { Daytona } from "@daytonaio/sdk";
 import type { CommandResult, WorkerOptions, ServiceResult } from "./types";
 import {
   getBundle,

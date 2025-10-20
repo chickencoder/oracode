@@ -113,8 +113,8 @@ export function useOptimisticMessages({
     waitingForResponse;
 
   const addOptimisticMessage = useCallback((text: string, id: string) => {
-    const userMessage = createUserMessage(text, id);
-    const assistantMessage = createOptimisticAssistantMessage();
+    const userMessage = createUserMessage(text, id) as MessageData;
+    const assistantMessage = createOptimisticAssistantMessage() as MessageData;
 
     // Show optimistic user message immediately
     setOptimisticUserMessage(userMessage);

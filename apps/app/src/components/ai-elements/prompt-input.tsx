@@ -34,8 +34,6 @@ import {
   MicIcon,
   PaperclipIcon,
   PlusIcon,
-  SendIcon,
-  SquareIcon,
   XIcon,
 } from "lucide-react";
 import { nanoid } from "nanoid";

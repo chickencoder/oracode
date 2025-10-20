@@ -1,8 +1,6 @@
 import { useParams, useNavigate } from "react-router";
 import { useQuery } from "convex/react";
 import { api } from "@repo/convex/_generated/api";
-import type { Id } from "@repo/convex/_generated/dataModel";
-import { useEffect } from "react";
 import { useOrganization } from "@clerk/clerk-react";
 import { ChatPanel } from "@/components/chat-panel";
 import { PreviewPanel } from "@/components/preview-panel";

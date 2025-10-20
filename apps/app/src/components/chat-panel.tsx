@@ -39,13 +39,6 @@ export function ChatPanel({ branchId, isSandboxReady }: ChatPanelProps) {
   );
   const insertUserMessage = useMutation(api.messages.insertUserMessage);
 
-  // Permission mode
-  const permissionMode = useQuery(
-    api.permissions.getPermissionMode,
-    branchId ? { branchId } : "skip",
-  );
-  const setPermissionMode = useMutation(api.permissions.setPermissionMode);
-
   // Pending permissions
   const pendingPermissions = useQuery(
     api.permissions.getPendingPermissions,

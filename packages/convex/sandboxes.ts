@@ -1,7 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation, internalAction } from "./_generated/server";
-import { internal, api } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
+import { internalMutation } from "./_generated/server";
 
 // Internal mutation to handle sandbox status changes from Daytona webhooks
 export const handleSandboxStateChange = internalMutation({

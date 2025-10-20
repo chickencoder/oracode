@@ -16,7 +16,7 @@ import {
   FileText,
   RotateCw,
 } from "lucide-react";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState } from "react";
 import { useAction } from "convex/react";
 import { api } from "@repo/convex/_generated/api";
 import type { Id } from "@repo/convex/_generated/dataModel";
@@ -51,7 +51,6 @@ export function PreviewPanel({
   onRetry,
   branchId,
 }: PreviewPanelProps) {
-  const [isIframeLoading, setIsIframeLoading] = useState(!!domain);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isRetrying, setIsRetrying] = useState(false);
   const [isLogsDialogOpen, setIsLogsDialogOpen] = useState(false);
@@ -65,6 +64,7 @@ export function PreviewPanel({
   };
 
   const handleRestartSandbox = async () => {
+    if (!branchId) return;
     setIsRestarting(true);
     try {
       await restartSandboxAction({ branchId });
@@ -81,16 +81,9 @@ export function PreviewPanel({
     }
   };
 
-  // Update loading state when domain changes
-  useEffect(() => {
-    if (domain) {
-      setIsIframeLoading(true);
-    }
-  }, [domain]);
-
   // Handle iframe load event
   const handleIframeLoad = () => {
-    setIsIframeLoading(false);
+    // Iframe loaded
   };
 
   const showSandboxLoading = !isReady && !hasError;
@@ -187,11 +180,13 @@ export function PreviewPanel({
           />
         </div>
       </WebPreview>
-      <LogsDialog
-        open={isLogsDialogOpen}
-        onOpenChange={setIsLogsDialogOpen}
-        branchId={branchId}
-      />
+      {branchId && (
+        <LogsDialog
+          open={isLogsDialogOpen}
+          onOpenChange={setIsLogsDialogOpen}
+          branchId={branchId}
+        />
+      )}
     </div>
   );
 }

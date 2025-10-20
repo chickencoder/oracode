@@ -28,7 +28,7 @@ export function OrgSettingsLayout() {
       {/* Sidebar Navigation */}
       <aside className="w-64 shrink-0">
         <nav className="space-y-1">
-          {settingsNav.map((item, index) => {
+          {settingsNav.map((item) => {
             if (item.type === "label") {
               return (
                 <div
