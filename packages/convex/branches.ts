@@ -111,28 +111,13 @@ export const getBranchByOrgProjectAndBranchName = query({
     if (!identity?.orgId || typeof identity.orgId !== "string") {
       throw new Error("User must be authenticated with an organization");
     }
-    const userOrgId = identity.orgId;
+    const orgId = identity.orgId;
 
-    // Find the organization by slug
-    const org = await ctx.db
-      .query("orgs")
-      .withIndex("by_slug", (q) => q.eq("slug", args.orgSlug))
-      .first();
-
-    if (!org) {
-      return null;
-    }
-
-    // Verify user belongs to this org
-    if (org.orgId !== userOrgId) {
-      throw new Error("Not authorized to access this organization");
-    }
-
-    // Find the project by org and slug
+    // Find the project by org and slug (using the user's orgId directly)
     const project = await ctx.db
       .query("projects")
       .withIndex("by_org_and_slug", (q) =>
-        q.eq("orgId", org.orgId).eq("slug", args.projectSlug),
+        q.eq("orgId", orgId).eq("slug", args.projectSlug),
       )
       .first();
 

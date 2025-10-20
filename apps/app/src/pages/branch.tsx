@@ -1,13 +1,13 @@
 import { useParams, useNavigate } from "react-router";
 import { useQuery } from "convex/react";
 import { api } from "@repo/convex/_generated/api";
-import { useOrganization } from "@clerk/clerk-react";
 import { ChatPanel } from "@/components/chat-panel";
 import { PreviewPanel } from "@/components/preview-panel";
 import { useSandbox } from "@/hooks/use-sandbox";
 import { BranchBreadcrumbs } from "@/components/branch-breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { PublishPopover } from "@/components/publish-popover";
+import { useOrgNavigation } from "@/hooks/use-org-navigation";
 import { toast } from "sonner";
 
 export function BranchPage() {
@@ -17,7 +17,9 @@ export function BranchPage() {
     branchName: string;
   }>();
   const navigate = useNavigate();
-  const { organization } = useOrganization();
+
+  // Ensure the correct org is set based on URL
+  const { organization, isLoaded: isOrgLoaded } = useOrgNavigation(orgSlug);
 
   const branch = useQuery(
     api.branches.getBranchByOrgProjectAndBranchName,

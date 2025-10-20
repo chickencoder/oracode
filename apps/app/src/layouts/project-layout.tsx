@@ -3,10 +3,10 @@ import { useParams, useNavigate, Outlet } from "react-router";
 import { useQuery } from "convex/react";
 import { api } from "@repo/convex/_generated/api";
 import type { Id } from "@repo/convex/_generated/dataModel";
-import { useOrganization } from "@clerk/clerk-react";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { useProjects } from "@/hooks/use-projects";
 import { useOrgSelection } from "@/hooks/use-org-selection";
+import { useOrgNavigation } from "@/hooks/use-org-navigation";
 import type { Tab } from "@/types/dashboard";
 
 const tabs: Tab[] = [
@@ -26,7 +26,9 @@ export function ProjectLayout() {
     orgSlug: string;
     projectSlug: string;
   }>();
-  const { organization } = useOrganization();
+
+  // Ensure the correct org is set based on URL
+  const { organization, isLoaded: isOrgLoaded } = useOrgNavigation(orgSlug);
   const { orgs, isOrgsLoaded, handleOrgSelect } = useOrgSelection();
 
   const project = useQuery(

@@ -7,6 +7,7 @@ export type Project = {
   _id: Id<"projects">;
   githubRepoId: number;
   name: string;
+  slug?: string;
   description: string;
   settings: {
     installCommand: string;

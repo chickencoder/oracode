@@ -37,7 +37,9 @@ export function ProjectsPage() {
   const { projects, isLoading } = useProjects();
 
   const handleProjectClick = (project: Project) => {
-    navigate(`/${orgSlug}/project/${project._id}`);
+    // Use slug if available, otherwise fall back to _id
+    const projectIdentifier = project.slug || project._id;
+    navigate(`/${orgSlug}/${projectIdentifier}`);
   };
 
   // Filter projects based on search query
