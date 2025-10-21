@@ -5,5 +5,11 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": {
     "enabled": true
-  }
+  },
+  "routes": [
+    {
+      "pattern": "*-git-*.*.oracode.dev/*",
+      "zone_name": "oracode.dev"
+    }
+  ]
 }

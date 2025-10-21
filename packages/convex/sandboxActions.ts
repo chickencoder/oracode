@@ -26,7 +26,7 @@ function slugify(text: string): string {
 
 /**
  * Build preview URL from org, project, and branch information
- * Format: {branchName}-{projectSlug}-{orgSlug}.preview.oracode.local
+ * Format: {projectSlug}-git-{branchName}.{orgSlug}.oracode.dev (or .local for dev)
  */
 async function buildPreviewUrl(
   ctx: ActionCtx,
@@ -46,10 +46,10 @@ async function buildPreviewUrl(
   const slugifiedBranchName = slugify(branchName);
   const host =
     process.env.NODE_ENV === "production"
-      ? "preview.oracode.dev"
-      : "preview.oracode.local";
+      ? "oracode.dev"
+      : "oracode.local";
 
-  return `https://${slugifiedBranchName}-${projectSlug}-${org.slug}.${host}`;
+  return `https://${projectSlug}-git-${slugifiedBranchName}.${org.slug}.${host}`;
 }
 
 // Helper function to build dev command with environment variables
