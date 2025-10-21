@@ -198,7 +198,7 @@ const handleGitHubCallback = httpAction(async (ctx, request) => {
       );
 
       // Redirect back to settings page
-      const appUrl = process.env.VITE_APP_URL || "http://localhost:5173";
+      const appUrl = process.env.SITE_URL || "http://localhost:5173";
       return Response.redirect(
         `${appUrl}/${slug}/settings/github?reconnect=success`,
         302,

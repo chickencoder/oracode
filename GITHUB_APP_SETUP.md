@@ -76,6 +76,7 @@ GITHUB_APP_PRIVATE_KEY=<paste-entire-pem-file-contents>
 ```
 
 **Important for Private Key:**
+
 - Copy the entire contents of the `.pem` file
 - Include the `-----BEGIN RSA PRIVATE KEY-----` and `-----END RSA PRIVATE KEY-----` lines
 - Paste as-is into Convex (newlines will be preserved)
@@ -86,7 +87,7 @@ Add to your `.env` or `.env.local`:
 
 ```bash
 VITE_GITHUB_APP_SLUG=<your-app-slug>
-VITE_APP_URL=http://localhost:5173  # or your production URL
+SITE_URL=http://localhost:5173  # or your production URL
 ```
 
 ## Step 6: Deploy Convex
@@ -126,18 +127,22 @@ After setup, verify:
 ## Troubleshooting
 
 ### Webhook returns 401 (Invalid signature)
+
 - Check `GITHUB_WEBHOOK_SECRET` matches what you set in GitHub
 - Ensure secret is the same in both places
 
 ### Webhook returns 500
+
 - Check Convex logs for errors
 - Verify `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` are set correctly
 
 ### Private key errors
+
 - Ensure newlines are preserved (use `\n` in env vars if needed)
 - Check the key includes BEGIN/END markers
 
 ### Installation callback fails
+
 - Verify `VITE_GITHUB_APP_SLUG` is set correctly
 - Check Convex HTTP action logs
 
