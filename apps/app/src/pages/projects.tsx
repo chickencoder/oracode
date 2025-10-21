@@ -11,10 +11,7 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Folder,
-  SearchIcon,
-} from "lucide-react";
+import { Folder, SearchIcon } from "lucide-react";
 import {
   InputGroup,
   InputGroupAddon,
@@ -111,7 +108,7 @@ export function ProjectsPage() {
             <EmptyMedia variant="icon">
               <Folder />
             </EmptyMedia>
-            <EmptyTitle>No projects found</EmptyTitle>
+            <EmptyTitle>No Projects Yet</EmptyTitle>
             <EmptyDescription>
               {search
                 ? `No projects found matching "${search}"`
