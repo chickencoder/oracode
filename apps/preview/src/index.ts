@@ -15,7 +15,7 @@ function parseHostname(
 ): { branchName: string; projectSlug: string; orgSlug: string } | null {
   const parts = hostname.split(".");
 
-  // Check for valid oracode domain: {projectSlug}-git-{branch}-{orgSlug}.oracode.local
+  // Check for valid oracode domain: {orgSlug}-team-{projectSlug}-git-{branch}.oracode.local
   if (
     parts.length === 3 &&
     parts[1] === "oracode" &&
@@ -23,21 +23,20 @@ function parseHostname(
   ) {
     const subdomain = parts[0];
 
-    // Must have format: {projectSlug}-git-{branch}-{orgSlug}
-    const gitIndex = subdomain.indexOf("-git-");
+    // Must have format: {orgSlug}-team-{projectSlug}-git-{branch}
+    const teamIndex = subdomain.indexOf("-team-");
+    if (teamIndex === -1) return null;
+
+    const orgSlug = subdomain.substring(0, teamIndex);
+    const afterTeam = subdomain.substring(teamIndex + 6); // +6 for "-team-"
+
+    const gitIndex = afterTeam.indexOf("-git-");
     if (gitIndex !== -1) {
-      const projectSlug = subdomain.substring(0, gitIndex);
-      const afterGit = subdomain.substring(gitIndex + 5); // +5 for "-git-"
+      const projectSlug = afterTeam.substring(0, gitIndex);
+      const branchName = afterTeam.substring(gitIndex + 5); // +5 for "-git-"
 
-      // Find last hyphen to separate branch from orgSlug
-      const lastHyphen = afterGit.lastIndexOf("-");
-      if (lastHyphen !== -1) {
-        const branchName = afterGit.substring(0, lastHyphen);
-        const orgSlug = afterGit.substring(lastHyphen + 1);
-
-        if (projectSlug && branchName && orgSlug) {
-          return { branchName, projectSlug, orgSlug };
-        }
+      if (orgSlug && projectSlug && branchName) {
+        return { branchName, projectSlug, orgSlug };
       }
     }
   }
@@ -63,7 +62,7 @@ app.all("*", async (c) => {
       ErrorTemplate({
         title: "Invalid URL Format",
         message:
-          "Expected format: {projectSlug}-git-{branch}-{orgSlug}.oracode.local",
+          "Expected format: {orgSlug}-team-{projectSlug}-git-{branch}.oracode.local",
         statusCode: 400,
         details: `Received: ${reqUrl.hostname}`,
       }),
