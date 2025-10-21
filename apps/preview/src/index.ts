@@ -15,23 +15,29 @@ function parseHostname(
 ): { branchName: string; projectSlug: string; orgSlug: string } | null {
   const parts = hostname.split(".");
 
-  // Check for valid oracode domain: {projectSlug}-git-{branch}.{orgSlug}.oracode.local
+  // Check for valid oracode domain: {projectSlug}-git-{branch}-{orgSlug}.oracode.local
   if (
-    parts.length === 4 &&
-    parts[2] === "oracode" &&
-    (parts[3] === "local" || parts[3] === "dev")
+    parts.length === 3 &&
+    parts[1] === "oracode" &&
+    (parts[2] === "local" || parts[2] === "dev")
   ) {
-    const orgSlug = parts[1];
-    const firstPart = parts[0];
+    const subdomain = parts[0];
 
-    // Must have format: {projectSlug}-git-{branch}
-    const gitIndex = firstPart.indexOf("-git-");
+    // Must have format: {projectSlug}-git-{branch}-{orgSlug}
+    const gitIndex = subdomain.indexOf("-git-");
     if (gitIndex !== -1) {
-      const projectSlug = firstPart.substring(0, gitIndex);
-      const branchName = firstPart.substring(gitIndex + 5); // +5 for "-git-"
+      const projectSlug = subdomain.substring(0, gitIndex);
+      const afterGit = subdomain.substring(gitIndex + 5); // +5 for "-git-"
 
-      if (projectSlug && branchName) {
-        return { branchName, projectSlug, orgSlug };
+      // Find last hyphen to separate branch from orgSlug
+      const lastHyphen = afterGit.lastIndexOf("-");
+      if (lastHyphen !== -1) {
+        const branchName = afterGit.substring(0, lastHyphen);
+        const orgSlug = afterGit.substring(lastHyphen + 1);
+
+        if (projectSlug && branchName && orgSlug) {
+          return { branchName, projectSlug, orgSlug };
+        }
       }
     }
   }
@@ -57,7 +63,7 @@ app.all("*", async (c) => {
       ErrorTemplate({
         title: "Invalid URL Format",
         message:
-          "Expected format: {projectSlug}-git-{branch}.{orgSlug}.oracode.local",
+          "Expected format: {projectSlug}-git-{branch}-{orgSlug}.oracode.local",
         statusCode: 400,
         details: `Received: ${reqUrl.hostname}`,
       }),
