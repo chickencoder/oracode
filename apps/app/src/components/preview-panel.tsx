@@ -81,7 +81,7 @@ export function PreviewPanel({
         try {
           // Use fetch with no-cors mode to avoid CORS issues
           // We just want to know if the server responds, not read the response
-          const response = await fetch(domain, {
+          await fetch(domain, {
             method: "HEAD",
             mode: "no-cors",
             cache: "no-cache",
