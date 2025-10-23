@@ -45,9 +45,7 @@ async function buildPreviewUrl(
 
   const slugifiedBranchName = slugify(branchName);
   const host =
-    process.env.NODE_ENV === "production"
-      ? "oracode.dev"
-      : "oracode.local";
+    process.env.NODE_ENV === "production" ? "oracode.dev" : "oracode.local";
 
   return `https://${org.slug}-team-${projectSlug}-git-${slugifiedBranchName}.${host}`;
 }
@@ -126,7 +124,10 @@ export const startSandbox = action({
       // Step 3: Handle existing sandbox scenarios
       if (branch.sandboxStatus) {
         // If already creating, return error to prevent duplicates
-        if (branch.sandboxStatus === "provisioning" || branch.sandboxStatus === "starting") {
+        if (
+          branch.sandboxStatus === "provisioning" ||
+          branch.sandboxStatus === "starting"
+        ) {
           throw new Error(
             "A sandbox is already being created for this branch. Please wait.",
           );
@@ -221,8 +222,8 @@ export const startSandbox = action({
             },
             public: true,
             resources: {
-              cpu: 2, // 2 vCPUs for better performance
-              memory: 4, // 4GB RAM for npm installs
+              cpu: 4, // 4 vCPUs for better performance
+              memory: 8, // 8GB RAM for npm installs
               disk: 10, // 10GB disk (max allowed, up from 3GB default)
             },
           },
@@ -379,12 +380,9 @@ export const startSandbox = action({
         }
 
         // Fetch project environment variables
-        const envVars = await ctx.runAction(
-          api.variables.getAllDecrypted,
-          {
-            projectId: branch.projectId,
-          },
-        );
+        const envVars = await ctx.runAction(api.variables.getAllDecrypted, {
+          projectId: branch.projectId,
+        });
         if (Object.keys(envVars).length > 0) {
           projectEnvVars = envVars;
           console.log(
@@ -555,7 +553,11 @@ export const startSandbox = action({
         const branch = await ctx.runQuery(api.branches.getBranchById, {
           branchId: args.branchId,
         });
-        if (branch && (branch.sandboxStatus === "provisioning" || branch.sandboxStatus === "starting")) {
+        if (
+          branch &&
+          (branch.sandboxStatus === "provisioning" ||
+            branch.sandboxStatus === "starting")
+        ) {
           await ctx.runMutation(api.branches.updateBranchSandboxError, {
             branchId: args.branchId,
             error:
@@ -618,7 +620,10 @@ export const restartSandbox = action({
         };
       }
 
-      console.log("Restarting sandbox - will stop and start to preserve files:", branch.sandboxId);
+      console.log(
+        "Restarting sandbox - will stop and start to preserve files:",
+        branch.sandboxId,
+      );
 
       // Step 3: Update status to "creating" (restarting)
       await ctx.runMutation(api.branches.initBranchSandbox, {
@@ -641,7 +646,10 @@ export const restartSandbox = action({
         await sandbox.stop(0); // Wait indefinitely for stop
         console.log("Sandbox stopped successfully");
       } catch (error) {
-        console.warn("Failed to stop sandbox (might already be stopped):", error);
+        console.warn(
+          "Failed to stop sandbox (might already be stopped):",
+          error,
+        );
         // Continue anyway - we'll try to start it
       }
 
@@ -695,10 +703,13 @@ export const restartSandbox = action({
       );
 
       // Start dev server in session
-      const devResult = await sandbox.process.executeSessionCommand(devSessionId, {
-        command: devCommand,
-        runAsync: true,
-      });
+      const devResult = await sandbox.process.executeSessionCommand(
+        devSessionId,
+        {
+          command: devCommand,
+          runAsync: true,
+        },
+      );
 
       console.log("Dev server started in session:", devSessionId);
 
@@ -768,7 +779,10 @@ export const restartSandbox = action({
           );
         }
       } catch (secretError) {
-        console.warn("⚠️ Failed to load secrets, continuing without them:", secretError);
+        console.warn(
+          "⚠️ Failed to load secrets, continuing without them:",
+          secretError,
+        );
         if (process.env.ANTHROPIC_API_KEY) {
           anthropicApiKey = process.env.ANTHROPIC_API_KEY;
         }
@@ -894,7 +908,7 @@ export const getWorkerLogs = action({
 
       // Get worker logs from file
       const result = await sandbox.process.executeCommand(
-        "tail -n 100 /tmp/worker.log 2>&1 || echo 'No logs found'"
+        "tail -n 100 /tmp/worker.log 2>&1 || echo 'No logs found'",
       );
 
       return {
@@ -950,7 +964,9 @@ export const resumeSandbox = action({
       }
 
       // Check if sandbox is stopped (based on sandboxState from Daytona webhooks)
-      const isStopped = branch.sandboxStatus === "stopped" || branch.sandboxStatus === "archived";
+      const isStopped =
+        branch.sandboxStatus === "stopped" ||
+        branch.sandboxStatus === "archived";
 
       if (!isStopped) {
         console.log("Sandbox is not stopped, returning current state");
@@ -1028,10 +1044,13 @@ export const resumeSandbox = action({
       );
 
       // Start dev server in session
-      const devResult = await sandbox.process.executeSessionCommand(devSessionId, {
-        command: devCommand,
-        runAsync: true,
-      });
+      const devResult = await sandbox.process.executeSessionCommand(
+        devSessionId,
+        {
+          command: devCommand,
+          runAsync: true,
+        },
+      );
 
       console.log("Dev server started in session:", devSessionId);
 
@@ -1101,7 +1120,10 @@ export const resumeSandbox = action({
           );
         }
       } catch (secretError) {
-        console.warn("⚠️ Failed to load secrets, continuing without them:", secretError);
+        console.warn(
+          "⚠️ Failed to load secrets, continuing without them:",
+          secretError,
+        );
         if (process.env.ANTHROPIC_API_KEY) {
           anthropicApiKey = process.env.ANTHROPIC_API_KEY;
         }
