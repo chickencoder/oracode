@@ -16,7 +16,7 @@ import {
   FileText,
   RotateCw,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useAction } from "convex/react";
 import { api } from "@repo/convex/_generated/api";
 import type { Id } from "@repo/convex/_generated/dataModel";
@@ -55,8 +55,68 @@ export function PreviewPanel({
   const [isRetrying, setIsRetrying] = useState(false);
   const [isLogsDialogOpen, setIsLogsDialogOpen] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
+  const [isHealthChecking, setIsHealthChecking] = useState(false);
+  const [healthCheckFailed, setHealthCheckFailed] = useState(false);
 
   const restartSandboxAction = useAction(api.sandboxActions.restartSandbox);
+
+  // Health check effect - polls the preview URL until it responds or times out
+  useEffect(() => {
+    // Only run health check when sandbox becomes ready and domain is available
+    if (!isReady || !domain || hasError) {
+      setIsHealthChecking(false);
+      return;
+    }
+
+    let isCancelled = false;
+    setIsHealthChecking(true);
+    setHealthCheckFailed(false);
+
+    const checkHealth = async () => {
+      const startTime = Date.now();
+      const timeout = 30000; // 30 seconds
+      const pollInterval = 1000; // Check every 1 second
+
+      while (!isCancelled && Date.now() - startTime < timeout) {
+        try {
+          // Use fetch with no-cors mode to avoid CORS issues
+          // We just want to know if the server responds, not read the response
+          const response = await fetch(domain, {
+            method: "HEAD",
+            mode: "no-cors",
+            cache: "no-cache",
+          });
+
+          // In no-cors mode, we can't read the status, but if it doesn't throw, it's reachable
+          // For regular CORS-enabled endpoints, check for 200-level status
+          if (!isCancelled) {
+            console.log("Health check passed - dev server is ready");
+            setIsHealthChecking(false);
+            return;
+          }
+        } catch (error) {
+          // Server not ready yet, continue polling
+          console.log("Health check failed, retrying...", error);
+        }
+
+        // Wait before next attempt
+        await new Promise((resolve) => setTimeout(resolve, pollInterval));
+      }
+
+      // Timeout reached
+      if (!isCancelled) {
+        console.warn("Health check timed out after 30s");
+        setIsHealthChecking(false);
+        setHealthCheckFailed(true);
+      }
+    };
+
+    checkHealth();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isReady, domain, hasError]);
 
   const handleRetry = () => {
     setIsRetrying(true);
@@ -66,11 +126,11 @@ export function PreviewPanel({
   const handleRestartSandbox = async () => {
     if (!branchId) return;
     setIsRestarting(true);
+    setHealthCheckFailed(false);
     try {
       await restartSandboxAction({ branchId });
       toast.success("Sandbox restarted successfully");
-      // Refresh the iframe after restart
-      handleRefresh();
+      // Health check will run automatically via useEffect when isReady becomes true
     } catch (error) {
       console.error("Failed to restart sandbox:", error);
       toast.error(
@@ -86,15 +146,18 @@ export function PreviewPanel({
     // Iframe loaded
   };
 
-  const showSandboxLoading = !isReady && !hasError;
-  const loadingMessage = loadingStage
-    ? {
-        provisioning: "Provisioning sandbox...",
-        cloning: "Cloning repository...",
-        installing: "Installing dependencies...",
-        starting: "Starting dev server...",
-      }[loadingStage]
-    : "Initializing preview...";
+  // Show loading if sandbox is not ready OR if health check is in progress
+  const showSandboxLoading = (!isReady || isHealthChecking) && !hasError;
+  const loadingMessage = isHealthChecking
+    ? "Waiting for dev server..."
+    : loadingStage
+      ? {
+          provisioning: "Provisioning sandbox...",
+          cloning: "Cloning repository...",
+          installing: "Installing dependencies...",
+          starting: "Starting dev server...",
+        }[loadingStage]
+      : "Initializing preview...";
 
   const handleRefresh = () => {
     const iframe = iframeRef.current;
@@ -169,6 +232,35 @@ export function PreviewPanel({
                 >
                   Try again
                 </Button>
+              </Alert>
+            </div>
+          )}
+          {healthCheckFailed && !hasError && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background z-10">
+              <Alert className="max-w-sm mx-auto flex items-center text-center flex-col bg-transparent p-4 py-8 border-dashed">
+                <AlertTitle className="text-lg mb-2">
+                  Dev Server Not Responding
+                </AlertTitle>
+                <AlertDescription className="mb-4">
+                  The dev server took too long to start. You can try refreshing
+                  or restarting the sandbox.
+                </AlertDescription>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleRefresh}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Refresh
+                  </Button>
+                  <Button
+                    onClick={handleRestartSandbox}
+                    loading={isRestarting}
+                    size="sm"
+                  >
+                    Restart
+                  </Button>
+                </div>
               </Alert>
             </div>
           )}
