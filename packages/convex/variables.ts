@@ -19,11 +19,13 @@ export const getProject = internalQuery({
       orgId: v.string(),
       githubRepoId: v.number(),
       name: v.string(),
+      slug: v.optional(v.string()),
       description: v.string(),
       settings: v.object({
         installCommand: v.string(),
         devCommand: v.string(),
         port: v.number(),
+        projectRoot: v.optional(v.string()),
       }),
       createdAt: v.number(),
     }),
