@@ -1,7 +1,9 @@
 {
   "name": "@repo/sandbox-worker",
   "version": "0.1.0",
+  "description": "Oracode sandbox worker bridging Convex and Claude Agent SDK",
   "private": true,
+  "license": "AGPL-3.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

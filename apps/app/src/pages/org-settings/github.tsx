@@ -87,8 +87,13 @@ export function GitHubSettingsPage() {
   };
 
   const handleRemove = async () => {
-    // TODO: Implement remove GitHub installation
-    toast.info("Remove GitHub installation - coming soon");
+    // Note: GitHub App uninstallation must be done through GitHub's UI
+    // Users can uninstall at: https://github.com/settings/installations
+    // or https://github.com/organizations/{org}/settings/installations
+    toast.info(
+      "To remove the GitHub connection, please uninstall the app from your GitHub settings",
+      { duration: 5000 }
+    );
     setShowRemoveDialog(false);
   };
 
