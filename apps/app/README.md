@@ -1,73 +1,141 @@
-# React + TypeScript + Vite
+# Oracode Frontend Application
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The main Next.js frontend application for Oracode, built with React 19 and Vite.
 
-Currently, two official plugins are available:
+## Overview
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+This is the primary user interface for Oracode, providing:
 
-## React Compiler
+- **Chat Interface**: Interact with Claude Code in a conversational UI
+- **Branch Management**: Create, view, and manage git branches
+- **Live Preview**: See your code changes in real-time
+- **Project Settings**: Configure repositories, dev commands, and environment variables
+- **GitHub Integration**: Connect repositories and manage installations
+- **Organization Management**: Multi-tenant support with Clerk
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Tech Stack
 
-## Expanding the ESLint configuration
+- **Framework**: Next.js 15 with React 19
+- **Build Tool**: Vite (using Rolldown)
+- **Styling**: Tailwind CSS v4
+- **UI Components**: Radix UI + custom AI component library
+- **State Management**: Convex real-time queries
+- **Authentication**: Clerk (user + organization management)
+- **Routing**: React Router v7
+- **Form Handling**: React Hook Form + Zod validation
+- **Deployment**: Cloudflare Pages
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Development
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Prerequisites
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- Node.js 20+
+- pnpm 10+
+- Convex deployment running
+- Environment variables configured (see `.env.example`)
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Running Locally
+
+```bash
+# From the root directory
+pnpm dev
+
+# Or just this app
+cd apps/app
+pnpm dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The app will be available at `http://localhost:5173`
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Building
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+pnpm build
 ```
+
+Output goes to `.next/` directory.
+
+### Type Checking
+
+```bash
+pnpm type-check
+```
+
+### Linting
+
+```bash
+pnpm lint
+```
+
+## Project Structure
+
+```
+src/
+├── components/
+│   ├── ai-elements/      # AI-specific UI components
+│   ├── ui/               # Radix UI components
+│   └── *.tsx             # Feature components
+├── hooks/                # Custom React hooks
+├── layouts/              # Layout components
+├── lib/                  # Utilities and helpers
+├── pages/                # Route pages
+├── types/                # TypeScript types
+└── main.tsx              # Entry point
+```
+
+### Key Directories
+
+- **`components/ai-elements/`**: Custom components for AI interactions (conversation, messages, prompt input, tasks, etc.)
+- **`hooks/`**: Convex query hooks, custom utilities
+- **`pages/`**: Route components (projects, branches, settings)
+- **`layouts/`**: Shared layouts (dashboard, settings)
+
+## Environment Variables
+
+See `.env.example` for required variables:
+
+- `VITE_CONVEX_URL`: Your Convex deployment URL
+- `VITE_CLERK_PUBLISHABLE_KEY`: Clerk public key
+- `VITE_GITHUB_APP_SLUG`: GitHub App slug
+
+## Deployment
+
+### Cloudflare Pages
+
+```bash
+pnpm build
+wrangler deploy
+```
+
+The app uses Cloudflare Pages for hosting with Vite build output.
+
+## Key Features
+
+### Chat Panel
+- Real-time message streaming from Claude
+- Tool use visualization (Read, Write, Edit, Bash, etc.)
+- Permission approval UI
+- Optimistic updates
+
+### Preview Panel
+- Live iframe preview of running dev server
+- Auto-refresh on file changes
+- Authentication via preview tokens
+
+### Branch Management
+- Create new branches from UI
+- Automatic sandbox provisioning
+- Git status tracking
+- Publish flow (commit, push, create PR)
+
+### Settings
+- Organization-level: Claude API key, GitHub connection
+- Project-level: Dev commands, environment variables, sandbox config
+
+## Contributing
+
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) in the root directory.
+
+## License
+
+AGPL-3.0 - See [LICENSE](../../LICENSE) in the root directory.
