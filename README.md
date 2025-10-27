@@ -50,7 +50,7 @@ Before running Oracode locally, you'll need accounts and API keys for:
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/oracode.git
+git clone https://github.com/chickencoder/oracode.git
 cd oracode
 ```
 
@@ -231,8 +231,8 @@ See [LICENSE](./LICENSE) for the full license text.
 ## Support
 
 - **Documentation**: See [CLAUDE.md](./CLAUDE.md) for architecture details
-- **Issues**: [GitHub Issues](https://github.com/yourusername/oracode/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/oracode/discussions)
+- **Issues**: [GitHub Issues](https://github.com/chickencoder/oracode/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/chickencoder/oracode/discussions)
 
 ## Acknowledgments
 

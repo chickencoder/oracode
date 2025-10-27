@@ -19,7 +19,7 @@ Please do not report security vulnerabilities through public GitHub issues, as t
 **Email**: security@oracode.dev (or create a GitHub Security Advisory)
 
 **GitHub Security Advisory**: You can also use GitHub's private vulnerability reporting:
-1. Go to the [Security tab](https://github.com/yourusername/oracode/security)
+1. Go to the [Security tab](https://github.com/chickencoder/oracode/security)
 2. Click "Report a vulnerability"
 3. Fill out the form with details
 
@@ -103,7 +103,7 @@ We do not currently have a bug bounty program, but we deeply appreciate security
 
 If you have questions about Oracode's security that aren't vulnerability reports, feel free to:
 
-- Open a [GitHub Discussion](https://github.com/yourusername/oracode/discussions)
+- Open a [GitHub Discussion](https://github.com/chickencoder/oracode/discussions)
 - Email: security@oracode.dev
 
 ## Hall of Fame

@@ -66,7 +66,7 @@ Feature suggestions are welcome! Please create an issue with:
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/oracode.git
+   git clone https://github.com/chickencoder/oracode.git
    cd oracode
    ```
 
